@@ -238,6 +238,7 @@ typedef struct {
   std::string name;
   std::string materialModel;
   ParameterMap values;
+  ParameterMap extras;
 } PBRMaterial;
 
 typedef struct {
@@ -1734,6 +1735,25 @@ static bool ParsePBRMaterial(PBRMaterial *material, std::string *err,
       if (ParseParameterProperty(&param, err, values_object, it->first,
                                  false)) {
         material->values[it->first] = param;
+      }
+    }
+  }
+
+  material->extras.clear();
+  picojson::object::const_iterator extrasIt = o.find("extras");
+
+  if ((extrasIt != o.end()) && (extrasIt->second).is<picojson::object>()) {
+    const picojson::object &extras_object =
+        (extrasIt->second).get<picojson::object>();
+
+    picojson::object::const_iterator it(extras_object.begin());
+    picojson::object::const_iterator itEnd(extras_object.end());
+
+    for (; it != itEnd; it++) {
+      Parameter param;
+      if (ParseParameterProperty(&param, err, extras_object, it->first,
+                                 false)) {
+        material->extras[it->first] = param;
       }
     }
   }
