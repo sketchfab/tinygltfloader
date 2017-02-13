@@ -224,33 +224,49 @@ struct Image{
   }
 };
 
-typedef struct {
+struct Texture {
   int format;
   int internalFormat;
   FlipY flipY;
-  std::string sampler;  // Required
-  std::string source;   // Required
+  int sampler;  // Required
+  int source;   // Required
   int target;
   int type;
   std::string name;
   ParameterMap extras;
-} Texture;
 
-typedef struct {
+  Texture()
+  {
+    sampler = -1;
+    source =-1;
+  }
+};
+
+struct Material {
   std::string name;
-  std::string technique;
+  int technique;
   ParameterMap values;
-} Material;
+
+  Material()
+  {
+    technique = -1;
+  }
+};
 
 //FIXME: the spec is not consistant with the official samples for this king of materials
 // so this function will need some updates
-typedef struct {
+struct KHRCommonMaterial {
   std::string name;
   bool doubleSided;
-  std::string technique;
+  int technique;
   bool transparent;
   ParameterMap values;
-} KHRCommonMaterial;
+
+  KHRCommonMaterial()
+  {
+    technique = -1;
+  }
+};
 
 typedef struct {
   std::string name;
@@ -1344,12 +1360,13 @@ static bool ParseTexture(Texture *texture, std::string *err,
                          const picojson::object &o,
                          const std::string &basedir) {
   (void)basedir;
-
-  if (!ParseStringProperty(&texture->sampler, err, o, "sampler", true)) {
+  double sampler = -1.0;
+  double source = -1.0;
+  if (!ParseNumberProperty(&sampler, err, o, "sampler", true)) {
     return false;
   }
 
-  if (!ParseStringProperty(&texture->source, err, o, "source", true)) {
+  if (!ParseNumberProperty(&source, err, o, "source", true)) {
     return false;
   }
 
@@ -1378,6 +1395,8 @@ static bool ParseTexture(Texture *texture, std::string *err,
   double type = TINYGLTF_TEXTURE_TYPE_UNSIGNED_BYTE;
   ParseNumberProperty(&type, err, o, "type", false);
 
+  texture->sampler = static_cast<int>(sampler);
+  texture->source = static_cast<int>(source);
   texture->format = static_cast<int>(format);
   texture->internalFormat = static_cast<int>(internalFormat);
   texture->target = static_cast<int>(target);
@@ -1802,7 +1821,8 @@ static bool ParseKHRCommonMaterial(KHRCommonMaterial *material, std::string *err
 
   // These are not declared as material values
   ParseBooleanProperty(&material->transparent, err, o, "transparent", false);
-  ParseStringProperty(&material->technique, err, o, "technique", false);
+  double technique = -1.0;
+  ParseNumberProperty(&technique, err, o, "technique", false);
 
   material->values.clear();
   picojson::object::const_iterator valuesIt = o.find("values");
@@ -1823,6 +1843,7 @@ static bool ParseKHRCommonMaterial(KHRCommonMaterial *material, std::string *err
     }
   }
 
+  material->technique = static_cast<int>(technique);
   return true;
 }
 
