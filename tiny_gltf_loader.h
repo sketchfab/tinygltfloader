@@ -196,17 +196,22 @@ typedef struct {
   int pad0;
 } Sampler;
 
-typedef struct {
+struct Image{
   std::string name;
   int width;
   int height;
   int component;
   int pad0;
   std::vector<unsigned char> image;
-  std::string bufferView;  // KHR_binary_glTF extenstion.
+  int bufferView;  // KHR_binary_glTF extenstion.
   std::string mimeType;    // KHR_binary_glTF extenstion.
   std::string path;
-} Image;
+
+  Image()
+  {
+    bufferView = -1;
+  }
+};
 
 typedef struct {
   int format;
@@ -243,14 +248,19 @@ typedef struct {
   ParameterMap extras;
 } PBRMaterial;
 
-typedef struct {
+struct BufferView{
   std::string name;
-  std::string buffer;  // Required
+  int buffer;  // Required
   size_t byteOffset;   // Required
   size_t byteLength;   // default: 0
   int target;
   int pad0;
-} BufferView;
+
+  BufferView()
+  {
+    buffer = -1;
+  }
+};
 
 typedef struct {
   std::string bufferView;
@@ -1136,7 +1146,7 @@ static bool ParseStringMapProperty(std::map<std::string, std::string> *ret,
 }
 
 static bool ParseKHRBinaryExtension(const picojson::object &o, std::string *err,
-                                    std::string *buffer_view,
+                                    double *buffer_view,
                                     std::string *mime_type, int *image_width,
                                     int *image_height) {
   picojson::object j = o;
@@ -1174,7 +1184,7 @@ static bool ParseKHRBinaryExtension(const picojson::object &o, std::string *err,
 
   picojson::object k = ext["KHR_binary_glTF"].get<picojson::object>();
 
-  if (!ParseStringProperty(buffer_view, err, k, "bufferView", true)) {
+  if (!ParseNumberProperty(buffer_view, err, k, "bufferView", true)) {
     return false;
   }
 
@@ -1257,7 +1267,7 @@ static bool ParseImage(Image *image, std::string *err,
       // There should be "extensions" property.
       // "extensions":{"KHR_binary_glTF":{"bufferView": "id", ...
 
-      std::string buffer_view;
+      double buffer_view = -1.0;
       std::string mime_type;
       int image_width;
       int image_height;
@@ -1278,7 +1288,7 @@ static bool ParseImage(Image *image, std::string *err,
 
       // Just only save some information here. Loading actual image data from
       // bufferView is done in other place.
-      image->bufferView = buffer_view;
+      image->bufferView = static_cast<int>(buffer_view);
       image->mimeType = mime_type;
       image->width = image_width;
       image->height = image_height;
@@ -1459,8 +1469,8 @@ static bool ParseBuffer(Buffer *buffer, std::string *err,
 
 static bool ParseBufferView(BufferView *bufferView, std::string *err,
                             const picojson::object &o) {
-  std::string buffer;
-  if (!ParseStringProperty(&buffer, err, o, "buffer", true)) {
+  double buffer = -1.0;
+  if (!ParseNumberProperty(&buffer, err, o, "buffer", true)) {
     return false;
   }
 
@@ -1485,7 +1495,7 @@ static bool ParseBufferView(BufferView *bufferView, std::string *err,
 
   ParseStringProperty(&bufferView->name, err, o, "name", false);
 
-  bufferView->buffer = buffer;
+  bufferView->buffer = static_cast<int>(buffer);
   bufferView->byteOffset = static_cast<size_t>(byteOffset);
   bufferView->byteLength = static_cast<size_t>(byteLength);
 
@@ -1839,7 +1849,7 @@ static bool ParseShader(Shader *shader, std::string *err,
       // There should be "extensions" property.
       // "extensions":{"KHR_binary_glTF":{"bufferView": "id", ...
 
-      std::string buffer_view;
+      double buffer_view = -1.0;
       std::string mime_type;
       int image_width;
       int image_height;
@@ -2239,7 +2249,7 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
         return false;
       }
 
-      scene->bufferViews(bufferView);
+      scene->bufferViews.push_back(bufferView);
     }
   }
 
@@ -2381,10 +2391,9 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
         return false;
       }
 
-      if (!image.bufferView.empty()) {
+      if (!image.bufferView != -1) {
         // Load image from the buffer view.
-        if (scene->bufferViews.find(image.bufferView) ==
-            scene->bufferViews.end()) {
+        if (image.bufferView >= scene->bufferViews.size()) {
           if (err) {
             std::stringstream ss;
             ss << "bufferView \"" << image.bufferView
