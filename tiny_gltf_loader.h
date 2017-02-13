@@ -190,12 +190,17 @@ typedef struct {
   std::vector<AnimationSampler> samplers;
 } Animation;
 
-typedef struct {
+struct Skin {
   std::string name;
   std::vector<double> bindShapeMatrix;
-  std::string inverseBindMatrices;
+  int inverseBindMatrices;
   std::vector<std::string> jointNames;
-} Skin;
+
+  Skin()
+  {
+    inverseBindMatrices = -1;
+  }
+};
 
 typedef struct {
   std::string name;
@@ -318,17 +323,23 @@ class Camera {
   float zNear;
 };
 
-typedef struct {
-  std::map<std::string, std::string> attributes;  // A dictionary object of
+struct Primitive {
+  std::map<std::string, int> attributes;  // A dictionary object of
                                                   // strings, where each string
                                                   // is the ID of the accessor
                                                   // containing an attribute.
-  std::string material;  // The ID of the material to apply to this primitive
+  int material;  // The ID of the material to apply to this primitive
                          // when rendering.
-  std::string indices;   // The ID of the accessor that contains the indices.
+  int indices;   // The ID of the accessor that contains the indices.
   int mode;              // one of TINYGLTF_MODE_***
   int pad0;
-} Primitive;
+
+  Primitive()
+  {
+    material = -1;
+    indices = -1;
+  }
+};
 
 typedef struct {
   std::string name;
@@ -337,21 +348,24 @@ typedef struct {
 
 class Node {
  public:
-  Node() {}
+  Node()
+  {
+    skin = -1;
+  }
   ~Node() {}
 
   std::string camera;  // camera object referenced by this node.
 
   std::string name;
   std::string jointName;
-  std::string skin;
-  std::vector<std::string> children;
+  int skin;
+  std::vector<int> children;
   std::vector<double> rotation;     // length must be 0 or 4
   std::vector<double> scale;        // length must be 0 or 3
   std::vector<double> translation;  // length must be 0 or 3
   std::vector<double> matrix;       // length must be 0 or 16
-  std::vector<std::string> meshes;
-  std::vector<std::string> skeletons;
+  std::vector<int> meshes;
+  std::vector<int> skeletons;
 };
 
 typedef struct {
@@ -400,6 +414,12 @@ typedef struct {
   char pad[7];
 } Asset;
 
+
+struct GltfScene {
+  std::string name;
+  std::vector<int> nodes;
+};
+
 class Scene {
  public:
   Scene() {}
@@ -421,9 +441,9 @@ class Scene {
   std::vector<Program> programs;
   std::vector<Technique> techniques;
   std::vector<Sampler> samplers;
-  std::vector<std::vector<int> > scenes;  // list of nodes
+  std::vector<GltfScene> scenes;
 
-  std::string defaultScene;
+  int defaultScene;
 
   Asset asset;
 };
@@ -1126,6 +1146,53 @@ static bool ParseStringArrayProperty(std::vector<std::string> *ret,
   return true;
 }
 
+static bool ParseStringIntProperty(std::map<std::string, int> *ret,
+                                   std::string *err, const picojson::object &o,
+                                   const std::string &property, bool required) {
+  picojson::object::const_iterator it = o.find(property);
+  if (it == o.end()) {
+    if (required) {
+      if (err) {
+        (*err) += "'" + property + "' property is missing.\n";
+      }
+    }
+    return false;
+  }
+
+  // Make sure we are dealing with an object / dictionary.
+  if (!it->second.is<picojson::object>()) {
+    if (required) {
+      if (err) {
+        (*err) += "'" + property + "' property is not an object.\n";
+      }
+    }
+    return false;
+  }
+
+  ret->clear();
+  const picojson::object &dict = it->second.get<picojson::object>();
+
+  picojson::object::const_iterator dictIt(dict.begin());
+  picojson::object::const_iterator dictItEnd(dict.end());
+
+  for (; dictIt != dictItEnd; ++dictIt) {
+    // Check that the value is a string.
+    if (!dictIt->second.is<int>()) {
+      if (required) {
+        if (err) {
+          (*err) += "'" + property + "' value is not an int.\n";
+        }
+      }
+      return false;
+    }
+
+    // Insert into the list.
+    (*ret)[dictIt->first] = static_cast<int>(dictIt->second.get<double>());
+  }
+  return true;
+}
+
+
 static bool ParseStringMapProperty(std::map<std::string, std::string> *ret,
                                    std::string *err, const picojson::object &o,
                                    const std::string &property, bool required) {
@@ -1618,9 +1685,12 @@ static bool ParseAccessor(Accessor *accessor, std::string *err,
 
 static bool ParsePrimitive(Primitive *primitive, std::string *err,
                            const picojson::object &o) {
-  if (!ParseStringProperty(&primitive->material, err, o, "material", true)) {
+  double material = -1.0;
+  if (!ParseNumberProperty(&material, err, o, "material", true)) {
     return false;
   }
+
+  primitive->material = static_cast<int>(material);
 
   double mode = static_cast<double>(TINYGLTF_MODE_TRIANGLES);
   ParseNumberProperty(&mode, err, o, "mode", false);
@@ -1636,10 +1706,10 @@ static bool ParsePrimitive(Primitive *primitive, std::string *err,
   }
   primitive->mode = primMode;
 
-  primitive->indices = "";
-  ParseStringProperty(&primitive->indices, err, o, "indices", false);
-
-  if (!ParseStringMapProperty(&primitive->attributes, err, o, "attributes",
+  double indices = -1.0;
+  ParseNumberProperty(&indices, err, o, "indices", false);
+  primitive->indices = static_cast<int>(indices);
+  if (!ParseStringIntProperty(&primitive->attributes, err, o, "attributes",
                               true)) {
     return false;
   }
@@ -1671,14 +1741,25 @@ static bool ParseMesh(Mesh *mesh, std::string *err, const picojson::object &o) {
 static bool ParseNode(Node *node, std::string *err, const picojson::object &o) {
   ParseStringProperty(&node->name, err, o, "name", false);
   ParseStringProperty(&node->jointName, err, o, "jointName", false);
-  ParseStringProperty(&node->skin, err, o, "skin", false);
-  ParseStringArrayProperty(&node->skeletons, err, o, "skeletons", false);
+
+  double skin = -1.0;
+  ParseNumberProperty(&skin, err, o, "skin", false);
+  node->skin = static_cast<int>(skin);
+
+  std::vector<double> skeletons;
+  ParseNumberArrayProperty(&skeletons, err, o, "skeletons", false);
+  std::vector<int> skeletonsIndices(skeletons.begin(), skeletons.end());
+  node->skeletons = skeletonsIndices;
 
   ParseNumberArrayProperty(&node->rotation, err, o, "rotation", false);
   ParseNumberArrayProperty(&node->scale, err, o, "scale", false);
   ParseNumberArrayProperty(&node->translation, err, o, "translation", false);
   ParseNumberArrayProperty(&node->matrix, err, o, "matrix", false);
-  ParseStringArrayProperty(&node->meshes, err, o, "meshes", false);
+
+  std::vector<double> meshes;
+  ParseNumberArrayProperty(&meshes, err, o, "meshes", false);
+  std::vector<int> meshIndices(meshes.begin(), meshes.end());
+  node->meshes = meshIndices;
 
   node->children.clear();
   picojson::object::const_iterator childrenObject = o.find("children");
@@ -1687,13 +1768,13 @@ static bool ParseNode(Node *node, std::string *err, const picojson::object &o) {
     const picojson::array &childrenArray =
         (childrenObject->second).get<picojson::array>();
     for (size_t i = 0; i < childrenArray.size(); i++) {
-      if (!childrenArray[i].is<std::string>()) {
+      if (!childrenArray[i].is<int>()) {
         if (err) {
           (*err) += "Invalid `children` array.\n";
         }
         return false;
       }
-      const std::string &childrenNode = childrenArray[i].get<std::string>();
+      const int &childrenNode = static_cast<int>(childrenArray[i].get<double>());
       node->children.push_back(childrenNode);
     }
   }
@@ -1738,7 +1819,10 @@ static bool ParseParameterProperty(Parameter *param, std::string *err,
 static bool ParseMaterial(Material *material, std::string *err,
                           const picojson::object &o) {
   ParseStringProperty(&material->name, err, o, "name", false);
-  ParseStringProperty(&material->technique, err, o, "technique", false);
+
+  double technique = -1.0;
+  ParseNumberProperty(&technique, err, o, "technique", false);
+  material->technique = static_cast<int>(technique);
 
   material->values.clear();
   picojson::object::const_iterator valuesIt = o.find("values");
@@ -1821,6 +1905,7 @@ static bool ParseKHRCommonMaterial(KHRCommonMaterial *material, std::string *err
 
   // These are not declared as material values
   ParseBooleanProperty(&material->transparent, err, o, "transparent", false);
+
   double technique = -1.0;
   ParseNumberProperty(&technique, err, o, "technique", false);
 
@@ -2127,7 +2212,11 @@ static bool parseSkin(Skin *skin, std::string *err,
 
   ParseStringProperty(&skin->name, err, o, "name", false);
   ParseNumberArrayProperty(&skin->bindShapeMatrix, err, o, "bindShapeMatrix", false);
-  ParseStringProperty(&skin->inverseBindMatrices, err, o, "inverseBindMatrices", true);
+
+  double invBind = -1.0;
+  ParseNumberProperty(&invBind, err, o, "inverseBindMatrices", true);
+  skin->inverseBindMatrices = static_cast<int>(invBind);
+
   ParseStringArrayProperty(&skin->jointNames, err, o, "jointNames", true);
 
   return true;
@@ -2229,7 +2318,7 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
   scene->accessors.clear();
   scene->meshes.clear();
   scene->nodes.clear();
-  scene->defaultScene = "";
+  scene->defaultScene = -1;
 
   // 0. Parse Asset
   if (v.contains("asset") && v.get("asset").is<picojson::object>()) {
@@ -2336,20 +2425,25 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
         return false;
       }
       const picojson::object &o = (it->second).get<picojson::object>();
-      std::vector<std::string> nodes;
-      if (!ParseStringArrayProperty(&nodes, err, o, "nodes", false)) {
+      std::vector<double> nodes;
+      if (!ParseNumberArrayProperty(&nodes, err, o, "nodes", false)) {
         return false;
       }
 
-      scene->scenes.push_back(nodes);
+      GltfScene gltfScene;
+      ParseStringProperty(&gltfScene.name, err, o, "name", false);
+      std::vector<int> nodesIds(nodes.begin(), nodes.end());
+      gltfScene.nodes = nodesIds;
+
+      scene->scenes.push_back(gltfScene);
     }
   }
 
   // 7. Parse default scenes.
-  if (v.contains("scene") && v.get("scene").is<std::string>()) {
-    const std::string defaultScene = v.get("scene").get<std::string>();
+  if (v.contains("scene") && v.get("scene").is<double>()) {
+    const int defaultScene = v.get("scene").get<double>();
 
-    scene->defaultScene = defaultScene;
+    scene->defaultScene = static_cast<int>(defaultScene);
   }
 
   // 8. Parse Material
