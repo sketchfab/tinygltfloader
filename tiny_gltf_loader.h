@@ -160,23 +160,34 @@ typedef struct {
 
 typedef std::map<std::string, Parameter> ParameterMap;
 
-typedef struct {
-  std::string sampler;
-  std::string target_id;
+struct AnimationChannel {
+  int sampler;
+  int target_id;
   std::string target_path;
-} AnimationChannel;
 
-typedef struct {
-  std::string input;
+  AnimationChannel()
+  {
+    sampler = -1;
+    target_id = -1;
+  }
+};
+
+struct AnimationSampler {
+  int input;
   std::string interpolation;
-  std::string output;
-} AnimationSampler;
+  int output;
+
+  AnimationSampler()
+  {
+    input = -1;
+    output = -1;
+  }
+};
 
 typedef struct {
   std::string name;
   std::vector<AnimationChannel> channels;
-  std::map<std::string, AnimationSampler> samplers;
-  ParameterMap parameters;
+  std::vector<AnimationSampler> samplers;
 } Animation;
 
 typedef struct {
@@ -255,15 +266,10 @@ struct BufferView{
   size_t byteLength;   // default: 0
   int target;
   int pad0;
-
-  BufferView()
-  {
-    buffer = -1;
-  }
 };
 
-typedef struct {
-  std::string bufferView;
+struct Accessor {
+  int bufferView;
   std::string name;
   size_t byteOffset;
   size_t byteStride;
@@ -274,7 +280,12 @@ typedef struct {
   int pad1;
   std::vector<double> minValues;  // Optional
   std::vector<double> maxValues;  // Optional
-} Accessor;
+
+  Accessor()
+  {
+    bufferView = -1;
+  }
+};
 
 class Camera {
  public:
@@ -1504,8 +1515,8 @@ static bool ParseBufferView(BufferView *bufferView, std::string *err,
 
 static bool ParseAccessor(Accessor *accessor, std::string *err,
                           const picojson::object &o) {
-  std::string bufferView;
-  if (!ParseStringProperty(&bufferView, err, o, "bufferView", true)) {
+  double bufferView = -1.0;
+  if (!ParseNumberProperty(&bufferView, err, o, "bufferView", true)) {
     return false;
   }
 
@@ -1563,7 +1574,7 @@ static bool ParseAccessor(Accessor *accessor, std::string *err,
   ParseNumberArrayProperty(&accessor->maxValues, err, o, "max", false);
 
   accessor->count = static_cast<size_t>(count);
-  accessor->bufferView = bufferView;
+  accessor->bufferView = static_cast<int>(bufferView);
   accessor->byteOffset = static_cast<size_t>(byteOffset);
   accessor->byteStride = static_cast<size_t>(byteStride);
 
@@ -1989,7 +2000,9 @@ static bool ParseTechnique(Technique *technique, std::string *err,
 
 static bool ParseAnimationChannel(AnimationChannel *channel, std::string *err,
                                   const picojson::object &o) {
-  if (!ParseStringProperty(&channel->sampler, err, o, "sampler", true)) {
+  double samplerIndex = -1.0;
+  double targetIndex = -1.0;
+  if (!ParseNumberProperty(&samplerIndex, err, o, "sampler", true)) {
     if (err) {
       (*err) += "`sampler` field is missing in animation channels\n";
     }
@@ -2001,7 +2014,7 @@ static bool ParseAnimationChannel(AnimationChannel *channel, std::string *err,
     const picojson::object &target_object =
         (targetIt->second).get<picojson::object>();
 
-    if (!ParseStringProperty(&channel->target_id, err, target_object, "id",
+    if (!ParseNumberProperty(&targetIndex, err, target_object, "id",
                              true)) {
       if (err) {
         (*err) += "`id` field is missing in animation.channels.target\n";
@@ -2017,6 +2030,9 @@ static bool ParseAnimationChannel(AnimationChannel *channel, std::string *err,
       return false;
     }
   }
+
+  channel->sampler = static_cast<int>(samplerIndex);
+  channel->target_id = static_cast<int>(targetIndex);
 
   return true;
 }
@@ -2041,21 +2057,20 @@ static bool ParseAnimation(Animation *animation, std::string *err,
 
   {
     picojson::object::const_iterator samplerIt = o.find("samplers");
-    if ((samplerIt != o.end()) && (samplerIt->second).is<picojson::object>()) {
-      const picojson::object &sampler_object =
-          (samplerIt->second).get<picojson::object>();
+    if ((samplerIt != o.end()) && (samplerIt->second).is<picojson::array>()) {
+      const picojson::array &sampler_array =
+          (samplerIt->second).get<picojson::array>();
 
-      picojson::object::const_iterator it = sampler_object.begin();
-      picojson::object::const_iterator itEnd = sampler_object.end();
+      picojson::array::const_iterator it = sampler_array.begin();
+      picojson::array::const_iterator itEnd = sampler_array.end();
 
       for (; it != itEnd; it++) {
-        // Skip non-objects
-        if (!it->second.is<picojson::object>()) continue;
-
-        const picojson::object &s = it->second.get<picojson::object>();
+        const picojson::object &s = it->get<picojson::object>();
 
         AnimationSampler sampler;
-        if (!ParseStringProperty(&sampler.input, err, s, "input", true)) {
+        double inputIndex = -1.0;
+        double outputIndex = -1.0;
+        if (!ParseNumberProperty(&inputIndex, err, s, "input", true)) {
           if (err) {
             (*err) += "`input` field is missing in animation.sampler\n";
           }
@@ -2068,35 +2083,19 @@ static bool ParseAnimation(Animation *animation, std::string *err,
           }
           return false;
         }
-        if (!ParseStringProperty(&sampler.output, err, s, "output", true)) {
+        if (!ParseNumberProperty(&outputIndex, err, s, "output", true)) {
           if (err) {
             (*err) += "`output` field is missing in animation.sampler\n";
           }
           return false;
         }
-
-        animation->samplers[it->first] = sampler;
+        sampler.input = static_cast<int>(inputIndex);
+        sampler.output = static_cast<int>(outputIndex);
+        animation->samplers.push_back(sampler);
       }
     }
   }
 
-  picojson::object::const_iterator parametersIt = o.find("parameters");
-  if ((parametersIt != o.end()) &&
-      (parametersIt->second).is<picojson::object>()) {
-    const picojson::object &parameters_object =
-        (parametersIt->second).get<picojson::object>();
-
-    picojson::object::const_iterator it(parameters_object.begin());
-    picojson::object::const_iterator itEnd(parameters_object.end());
-
-    for (; it != itEnd; it++) {
-      Parameter param;
-      if (ParseParameterProperty(&param, err, parameters_object, it->first,
-                                 false)) {
-        animation->parameters[it->first] = param;
-      }
-    }
-  }
   ParseStringProperty(&animation->name, err, o, "name", false);
 
   return true;
