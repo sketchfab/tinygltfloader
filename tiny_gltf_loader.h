@@ -342,7 +342,7 @@ class Node {
   }
   ~Node() {}
 
-  std::string camera;  // camera object referenced by this node.
+  int camera;  // camera object referenced by this node.
 
   std::string name;
   std::string jointName;
@@ -1731,6 +1731,10 @@ static bool ParseNode(Node *node, std::string *err, const picojson::object &o) {
   ParseNumberArrayProperty(&node->scale, err, o, "scale", false);
   ParseNumberArrayProperty(&node->translation, err, o, "translation", false);
   ParseNumberArrayProperty(&node->matrix, err, o, "matrix", false);
+
+  double camera = -1.0;
+  ParseNumberProperty(&camera, err, o, "camera", false);
+  node->camera = static_cast<int>(skin);
 
   std::vector<double> meshes;
   ParseNumberArrayProperty(&meshes, err, o, "meshes", false);
