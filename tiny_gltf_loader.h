@@ -152,6 +152,7 @@ enum FlipY {
 };
 
 typedef struct {
+  bool bool_value;
   std::string string_value;
   std::vector<double> number_array;
   std::map<std::string, std::string> json_value;
@@ -216,6 +217,7 @@ typedef struct {
   int target;
   int type;
   std::string name;
+  ParameterMap extras;
 } Texture;
 
 typedef struct {
@@ -1679,7 +1681,9 @@ static bool ParseParameterProperty(Parameter *param, std::string *err,
     return true;
   } else if(ParseJSONProperty(&param->json_value, err, o, prop, false)) {
     return true;
-  }else {
+  } else if(ParseBooleanProperty(&param->bool_value, err, o, prop, false)) {
+    return true;
+  } else {
     if (required) {
       if (err) {
         (*err) += "parameter must be a string or number / number array.\n";
@@ -1716,6 +1720,27 @@ static bool ParseMaterial(Material *material, std::string *err,
   return true;
 }
 
+static void ParseExtras(ParameterMap &extras, std::string *err, const picojson::object &o)
+{
+  picojson::object::const_iterator extrasIt = o.find("extras");
+
+  if ((extrasIt != o.end()) && (extrasIt->second).is<picojson::object>()) {
+    const picojson::object &extras_object =
+        (extrasIt->second).get<picojson::object>();
+
+    picojson::object::const_iterator it(extras_object.begin());
+    picojson::object::const_iterator itEnd(extras_object.end());
+
+    for (; it != itEnd; it++) {
+      Parameter param;
+      if (ParseParameterProperty(&param, err, extras_object, it->first,
+                                 false)) {
+        extras[it->first] = param;
+      }
+    }
+  }
+}
+
 // PBR material extension has only a materialModel followed by a set of values
 static bool ParsePBRMaterial(PBRMaterial *material, std::string *err,
                              const picojson::object &o) {
@@ -1739,24 +1764,9 @@ static bool ParsePBRMaterial(PBRMaterial *material, std::string *err,
     }
   }
 
+  // Parse extra metadata
   material->extras.clear();
-  picojson::object::const_iterator extrasIt = o.find("extras");
-
-  if ((extrasIt != o.end()) && (extrasIt->second).is<picojson::object>()) {
-    const picojson::object &extras_object =
-        (extrasIt->second).get<picojson::object>();
-
-    picojson::object::const_iterator it(extras_object.begin());
-    picojson::object::const_iterator itEnd(extras_object.end());
-
-    for (; it != itEnd; it++) {
-      Parameter param;
-      if (ParseParameterProperty(&param, err, extras_object, it->first,
-                                 false)) {
-        material->extras[it->first] = param;
-      }
-    }
-  }
+  ParseExtras(material->extras, err, o);
 
   return true;
 }
@@ -1767,7 +1777,7 @@ static bool ParseKHRCommonMaterial(KHRCommonMaterial *material, std::string *err
                                    const picojson::object &o) {
   ParseBooleanProperty(&material->doubleSided, err, o, "doubleSided", false);
 
-  // These are not declared as material properties (or declared as values)
+  // These are not declared as material values
   ParseBooleanProperty(&material->transparent, err, o, "transparent", false);
   ParseStringProperty(&material->technique, err, o, "technique", false);
 
@@ -2410,7 +2420,11 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
         return false;
       }
 
-      scene->textures[it->first] = texture;
+      // Parse extra metadata
+      texture.extras.clear();
+      ParseExtras(texture.extras, err, (it->second).get<picojson::object>());
+
+      scene->textures.push_back(texture);
     }
   }
 
