@@ -249,36 +249,24 @@ struct Texture {
 
 struct Material {
   std::string name;
+  std::string extension;
   int technique;
-  ParameterMap values;
+  // only in commonMaterial ext
+  bool doubleSided;
+  bool transparent;
 
+  // only in PBRMaterial ext
+  std::string materialModel;
+
+  ParameterMap values; // PBR metal/roughness workflow
+  ParameterMap extCommonValues;
+  ParameterMap extPBRValues;
+  ParameterMap extras;
   Material()
   {
     technique = -1;
   }
 };
-
-//FIXME: the spec is not consistant with the official samples for this king of materials
-// so this function will need some updates
-struct KHRCommonMaterial {
-  std::string name;
-  bool doubleSided;
-  int technique;
-  bool transparent;
-  ParameterMap values;
-
-  KHRCommonMaterial()
-  {
-    technique = -1;
-  }
-};
-
-typedef struct {
-  std::string name;
-  std::string materialModel;
-  ParameterMap values;
-  ParameterMap extras;
-} PBRMaterial;
 
 struct BufferView{
   std::string name;
@@ -430,8 +418,6 @@ class Scene {
   std::vector<Buffer> buffers;
   std::vector<BufferView> bufferViews;
   std::vector<Material> materials;
-  std::vector<KHRCommonMaterial> commonMaterials;
-  std::vector<PBRMaterial> pbrMaterials;
   std::vector<Mesh> meshes;
   std::vector<Node> nodes;
   std::vector<Texture> textures;
@@ -1868,7 +1854,7 @@ static void ParseExtras(ParameterMap &extras, std::string *err, const picojson::
 }
 
 // PBR material extension has only a materialModel followed by a set of values
-static bool ParsePBRMaterial(PBRMaterial *material, std::string *err,
+static bool ParsePBRMaterial(Material *material, std::string *err,
                              const picojson::object &o) {
   ParseStringProperty(&material->materialModel, err, o, "materialModel", true);
   material->values.clear();
@@ -1885,7 +1871,7 @@ static bool ParsePBRMaterial(PBRMaterial *material, std::string *err,
       Parameter param;
       if (ParseParameterProperty(&param, err, values_object, it->first,
                                  false)) {
-        material->values[it->first] = param;
+        material->extPBRValues[it->first] = param;
       }
     }
   }
@@ -1899,13 +1885,12 @@ static bool ParsePBRMaterial(PBRMaterial *material, std::string *err,
 
 //FIXME: the spec is not consistant with the official samples for this king of materials
 // so this function will need some updates
-static bool ParseKHRCommonMaterial(KHRCommonMaterial *material, std::string *err,
+static bool ParseKHRCommonMaterial(Material *material, std::string *err,
                                    const picojson::object &o) {
   ParseBooleanProperty(&material->doubleSided, err, o, "doubleSided", false);
 
   // These are not declared as material values
   ParseBooleanProperty(&material->transparent, err, o, "transparent", false);
-
   double technique = -1.0;
   ParseNumberProperty(&technique, err, o, "technique", false);
 
@@ -1923,7 +1908,7 @@ static bool ParseKHRCommonMaterial(KHRCommonMaterial *material, std::string *err
       Parameter param;
       if (ParseParameterProperty(&param, err, values_object, it->first,
                                  false)) {
-        material->values[it->first] = param;
+        material->extCommonValues[it->first] = param;
       }
     }
   }
@@ -2454,34 +2439,34 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
     for (; it != itEnd; it++) {
       picojson::object jsonMaterial = it->get<picojson::object>();
       std::map<std::string, picojson::value>::iterator extIt = jsonMaterial.find("extensions");
+      Material material;
       if(extIt != jsonMaterial.end()){
           picojson::object extension = extIt->second.get<picojson::object>();
+          material.extension = extension.begin()->first;
           if(extension.begin()->first.compare("KHR_materials_common") == 0)
           {
-            KHRCommonMaterial material;
+            material.extension = extension.begin()->first;
             // Assume that there is only one extension in the extensions
             ParseStringProperty(&material.name, err, jsonMaterial, "name", false);
             if(!ParseKHRCommonMaterial(&material, err, extension.begin()->second.get<picojson::object>()))
             {
               return false;
             }
-            scene->commonMaterials.push_back(material);
+            scene->materials.push_back(material);
           }
           else if(extension.begin()->first.compare("FRAUNHOFER_materials_pbr") == 0)
           {
-            PBRMaterial material;
             // Assume that there is only one extension in the extensions
             ParseStringProperty(&material.name, err, jsonMaterial, "name", false);
             if(!ParsePBRMaterial(&material, err, extension.begin()->second.get<picojson::object>()))
             {
               return false;
             }
-            scene->pbrMaterials.push_back(material);
+            scene->materials.push_back(material);
           }
       }   // Default material
       else
       {
-        Material material;
         std::cout << "Found classic material" << std::endl;
         if (!ParseMaterial(&material, err, jsonMaterial)) {
           return false;
