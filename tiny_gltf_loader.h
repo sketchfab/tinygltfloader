@@ -1473,16 +1473,6 @@ static bool ParseBuffer(Buffer *buffer, std::string *err,
     return false;
   }
 
-  picojson::object::const_iterator type = o.find("type");
-  if (type != o.end()) {
-    if (type->second.is<std::string>()) {
-      const std::string &ty = (type->second).get<std::string>();
-      if (ty.compare("arraybuffer") == 0) {
-        // buffer.type = "arraybuffer";
-      }
-    }
-  }
-
   size_t bytes = static_cast<size_t>(byteLength);
   if (is_binary) {
     // Still binary glTF accepts external dataURI. First try external resources.
