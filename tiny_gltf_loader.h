@@ -359,6 +359,7 @@ class Node {
 typedef struct {
   std::string name;
   std::vector<unsigned char> data;
+  std::string uri;
 } Buffer;
 
 typedef struct {
@@ -400,6 +401,7 @@ typedef struct {
   std::string profile_version;
   bool premultipliedAlpha;
   char pad[7];
+  ParameterMap extras;
 } Asset;
 
 
@@ -430,6 +432,7 @@ class Scene {
   std::vector<GltfScene> scenes;
 
   int defaultScene;
+  std::vector<std::string> extensionsUsed;
 
   Asset asset;
 };
@@ -1289,6 +1292,61 @@ static bool ParseKHRBinaryExtension(const picojson::object &o, std::string *err,
   return true;
 }
 
+static bool ParseParameterProperty(Parameter *param, std::string *err,
+                                   const picojson::object &o,
+                                   const std::string &prop, bool required) {
+  double num_val;
+
+  // A parameter value can either be a string or an array of either a boolean or
+  // a number. Booleans of any kind aren't supported here. Granted, it
+  // complicates the Parameter structure and breaks it semantically in the sense
+  // that the client probably works off the assumption that if the string is
+  // empty the vector is used, etc. Would a tagged union work?
+  if (ParseStringProperty(&param->string_value, err, o, prop, false)) {
+    // Found string property.
+    return true;
+  } else if (ParseNumberArrayProperty(&param->number_array, err, o, prop,
+                                      false)) {
+    // Found a number array.
+    return true;
+  } else if (ParseNumberProperty(&num_val, err, o, prop, false)) {
+    param->number_array.push_back(num_val);
+    return true;
+  } else if(ParseJSONProperty(&param->json_value, err, o, prop, false)) {
+    return true;
+  } else if(ParseBooleanProperty(&param->bool_value, err, o, prop, false)) {
+    return true;
+  } else {
+    if (required) {
+      if (err) {
+        (*err) += "parameter must be a string or number / number array.\n";
+      }
+    }
+    return false;
+  }
+}
+
+static void ParseExtras(ParameterMap &extras, std::string *err, const picojson::object &o)
+{
+  picojson::object::const_iterator extrasIt = o.find("extras");
+
+  if ((extrasIt != o.end()) && (extrasIt->second).is<picojson::object>()) {
+    const picojson::object &extras_object =
+        (extrasIt->second).get<picojson::object>();
+
+    picojson::object::const_iterator it(extras_object.begin());
+    picojson::object::const_iterator itEnd(extras_object.end());
+
+    for (; it != itEnd; it++) {
+      Parameter param;
+      if (ParseParameterProperty(&param, err, extras_object, it->first,
+                                 false)) {
+        extras[it->first] = param;
+      }
+    }
+  }
+}
+
 static bool ParseAsset(Asset *asset, std::string *err,
                        const picojson::object &o) {
   ParseStringProperty(&asset->generator, err, o, "generator", false);
@@ -1307,6 +1365,8 @@ static bool ParseAsset(Asset *asset, std::string *err,
       asset->profile_version = v.get("version").get<std::string>();
     }
   }
+
+  ParseExtras(asset->extras, err, o);
 
   return true;
 }
@@ -1536,6 +1596,7 @@ static bool ParseBuffer(Buffer *buffer, std::string *err,
   }
 
   ParseStringProperty(&buffer->name, err, o, "name", false);
+  ParseStringProperty(&buffer->uri, err, o, "uri", false);
 
   return true;
 }
@@ -1762,44 +1823,9 @@ static bool ParseNode(Node *node, std::string *err, const picojson::object &o) {
   return true;
 }
 
-static bool ParseParameterProperty(Parameter *param, std::string *err,
-                                   const picojson::object &o,
-                                   const std::string &prop, bool required) {
-  double num_val;
-
-  // A parameter value can either be a string or an array of either a boolean or
-  // a number. Booleans of any kind aren't supported here. Granted, it
-  // complicates the Parameter structure and breaks it semantically in the sense
-  // that the client probably works off the assumption that if the string is
-  // empty the vector is used, etc. Would a tagged union work?
-  if (ParseStringProperty(&param->string_value, err, o, prop, false)) {
-    // Found string property.
-    return true;
-  } else if (ParseNumberArrayProperty(&param->number_array, err, o, prop,
-                                      false)) {
-    // Found a number array.
-    return true;
-  } else if (ParseNumberProperty(&num_val, err, o, prop, false)) {
-    param->number_array.push_back(num_val);
-    return true;
-  } else if(ParseJSONProperty(&param->json_value, err, o, prop, false)) {
-    return true;
-  } else if(ParseBooleanProperty(&param->bool_value, err, o, prop, false)) {
-    return true;
-  } else {
-    if (required) {
-      if (err) {
-        (*err) += "parameter must be a string or number / number array.\n";
-      }
-    }
-    return false;
-  }
-}
-
 static bool ParseMaterial(Material *material, std::string *err,
                           const picojson::object &o) {
   ParseStringProperty(&material->name, err, o, "name", false);
-
   double technique = -1.0;
   ParseNumberProperty(&technique, err, o, "technique", false);
   material->technique = static_cast<int>(technique);
@@ -1824,27 +1850,6 @@ static bool ParseMaterial(Material *material, std::string *err,
   }
 
   return true;
-}
-
-static void ParseExtras(ParameterMap &extras, std::string *err, const picojson::object &o)
-{
-  picojson::object::const_iterator extrasIt = o.find("extras");
-
-  if ((extrasIt != o.end()) && (extrasIt->second).is<picojson::object>()) {
-    const picojson::object &extras_object =
-        (extrasIt->second).get<picojson::object>();
-
-    picojson::object::const_iterator it(extras_object.begin());
-    picojson::object::const_iterator itEnd(extras_object.end());
-
-    for (; it != itEnd; it++) {
-      Parameter param;
-      if (ParseParameterProperty(&param, err, extras_object, it->first,
-                                 false)) {
-        extras[it->first] = param;
-      }
-    }
-  }
 }
 
 // PBR material extension has only a materialModel followed by a set of values
@@ -2297,13 +2302,22 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
   scene->accessors.clear();
   scene->meshes.clear();
   scene->nodes.clear();
+  scene->extensionsUsed.clear();
   scene->defaultScene = -1;
 
   // 0. Parse Asset
   if (v.contains("asset") && v.get("asset").is<picojson::object>()) {
     const picojson::object &root = v.get("asset").get<picojson::object>();
-
     ParseAsset(&scene->asset, err, root);
+  }
+
+  // 0. Parse Asset
+  if (v.contains("extensionsUsed") && v.get("extensionsUsed").is<picojson::array>()) {
+    const picojson::array &root = v.get("extensionsUsed").get<picojson::array>();
+    for(unsigned int i=0; i< root.size(); ++i)
+    {
+      scene->extensionsUsed.push_back(root[i].get<std::string>());
+    }
   }
 
   // 1. Parse Buffer
