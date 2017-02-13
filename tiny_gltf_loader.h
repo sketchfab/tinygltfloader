@@ -2511,7 +2511,7 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
 
       if (image.bufferView != -1) {
         // Load image from the buffer view.
-        if (image.bufferView >= scene->bufferViews.size()) {
+        if ((size_t)image.bufferView >= scene->bufferViews.size()) {
           if (err) {
             std::stringstream ss;
             ss << "bufferView \"" << image.bufferView
@@ -2813,6 +2813,7 @@ template<typename T>
 static bool SerializeNumberProperty(const std::string &key, T number, picojson::object &obj)
 {
   obj.insert(json_object_pair(key, picojson::value(static_cast<double>(number))));
+  return true;
 }
 
 template<typename T>
@@ -2853,7 +2854,7 @@ static bool SerializeStringArrayProperty(const std::string &key, const std::vect
   return true;
 }
 
-static bool SerializeBuffer(Buffer &buffer, picojson::object &o, const std::string &binFilePath)
+static bool SerializeBuffer(Buffer &buffer, const std::string &binFilePath)
 {
   //Serialize buffer data
   std::ofstream output(binFilePath.c_str(), std::ofstream::binary);
@@ -2879,6 +2880,8 @@ static bool SerializeParameterMap(ParameterMap &param, picojson::object &o)
     else
       o.insert(json_object_pair(paramIt->first, picojson::value(paramIt->second.bool_value)));
   }
+
+  return true;
 }
 
 static bool SerializeGltfAccessor(Accessor &accessor, picojson::object &o)
@@ -3165,8 +3168,7 @@ static bool SerializeGltfTexture(Texture &texture, picojson::object &o)
   return true;
 }
 
-bool TinyGLTFLoader::WriteGltfSceneToFile(Scene *scene, std::string *err,
-                                       const std::string &filename)
+bool TinyGLTFLoader::WriteGltfSceneToFile(Scene *scene, const std::string &filename)
 {
   picojson::object output;
 
