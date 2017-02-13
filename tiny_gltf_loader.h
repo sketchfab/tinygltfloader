@@ -2500,7 +2500,7 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
 
       if (image.bufferView != -1) {
         // Load image from the buffer view.
-        if (image.bufferView >= scene->bufferViews.size()) {
+        if ((size_t)image.bufferView >= scene->bufferViews.size()) {
           if (err) {
             std::stringstream ss;
             ss << "bufferView \"" << image.bufferView
