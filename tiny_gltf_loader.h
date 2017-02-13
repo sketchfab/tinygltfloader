@@ -368,23 +368,23 @@ class Scene {
   Scene() {}
   ~Scene() {}
 
-  std::map<std::string, Accessor> accessors;
-  std::map<std::string, Animation> animations;
-  std::map<std::string, Buffer> buffers;
-  std::map<std::string, BufferView> bufferViews;
-  std::map<std::string, Material> materials;
-  std::map<std::string, KHRCommonMaterial> commonMaterials;
-  std::map<std::string, PBRMaterial> pbrMaterials;
-  std::map<std::string, Mesh> meshes;
-  std::map<std::string, Node> nodes;
-  std::map<std::string, Texture> textures;
-  std::map<std::string, Image> images;
-  std::map<std::string, Shader> shaders;
-  std::map<std::string, Skin> skins;
-  std::map<std::string, Program> programs;
-  std::map<std::string, Technique> techniques;
-  std::map<std::string, Sampler> samplers;
-  std::map<std::string, std::vector<std::string> > scenes;  // list of nodes
+  std::vector<Accessor> accessors;
+  std::vector<Animation> animations;
+  std::vector<Buffer> buffers;
+  std::vector<BufferView> bufferViews;
+  std::vector<Material> materials;
+  std::vector<KHRCommonMaterial> commonMaterials;
+  std::vector<PBRMaterial> pbrMaterials;
+  std::vector<Mesh> meshes;
+  std::vector<Node> nodes;
+  std::vector<Texture> textures;
+  std::vector<Image> images;
+  std::vector<Shader> shaders;
+  std::vector<Skin> skins;
+  std::vector<Program> programs;
+  std::vector<Technique> techniques;
+  std::vector<Sampler> samplers;
+  std::vector<std::vector<int> > scenes;  // list of nodes
 
   std::string defaultScene;
 
@@ -2221,7 +2221,7 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
         return false;
       }
 
-      scene->buffers[it->first] = buffer;
+      scene->buffers.push_back(buffer);
     }
   }
 
@@ -2239,7 +2239,7 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
         return false;
       }
 
-      scene->bufferViews[it->first] = bufferView;
+      scene->bufferViews(bufferView);
     }
   }
 
@@ -2256,7 +2256,7 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
         return false;
       }
 
-      scene->accessors[it->first] = accessor;
+      scene->accessors.push_back(accessor);
     }
   }
 
@@ -2272,7 +2272,7 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
         return false;
       }
 
-      scene->meshes[it->first] = mesh;
+      scene->meshes.push_back(mesh);
     }
   }
 
@@ -2288,7 +2288,7 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
         return false;
       }
 
-      scene->nodes[it->first] = node;
+      scene->nodes.push_back(node);
     }
   }
 
@@ -2311,7 +2311,7 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
         return false;
       }
 
-      scene->scenes[it->first] = nodes;
+      scene->scenes.push_back(nodes);
     }
   }
 
@@ -2341,7 +2341,7 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
             {
               return false;
             }
-            scene->commonMaterials[it->first] = material;
+            scene->commonMaterials.push_back(material);
           }
           else if(extension.begin()->first.compare("FRAUNHOFER_materials_pbr") == 0)
           {
@@ -2352,7 +2352,7 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
             {
               return false;
             }
-            scene->pbrMaterials[it->first] = material;
+            scene->pbrMaterials.push_back(material);
           }
       }   // Default material
       else
@@ -2363,7 +2363,7 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
           return false;
         }
 
-        scene->materials[it->first] = material;
+        scene->materials.push_back(material);
       }
     }
   }
@@ -2405,7 +2405,7 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
         }
       }
 
-      scene->images[it->first] = image;
+      scene->images.push_back(image);
     }
   }
 
@@ -2443,7 +2443,7 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
         return false;
       }
 
-      scene->shaders[it->first] = shader;
+      scene->shaders.push_back(shader);
     }
   }
 
@@ -2459,7 +2459,7 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
         return false;
       }
 
-      scene->programs[it->first] = program;
+      scene->programs.push_back(program);
     }
   }
 
@@ -2476,7 +2476,7 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
         return false;
       }
 
-      scene->techniques[it->first] = technique;
+      scene->techniques.push_back(technique);
     }
   }
 
@@ -2493,7 +2493,7 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
         return false;
       }
 
-      scene->animations[it->first] = animation;
+      scene->animations.push_back(animation);
     }
   }
 
@@ -2510,7 +2510,7 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
         return false;
       }
 
-      scene->skins[it->first] = skin;
+      scene->skins.push_back(skin);
     }
   }
 
@@ -2526,7 +2526,7 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
         return false;
       }
 
-      scene->samplers[it->first] = sampler;
+      scene->samplers.push_back(sampler);
     }
   }
   return true;
