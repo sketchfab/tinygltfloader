@@ -2258,7 +2258,7 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
     return false;
   }
 
-  if (v.contains("scene") && v.get("scene").is<std::string>()) {
+  if (v.contains("scene") && v.get("scene").is<double>()) {
     // OK
   } else if (check_sections & REQUIRE_SCENE) {
     if (err) {
@@ -2267,7 +2267,7 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
     return false;
   }
 
-  if (v.contains("scenes") && v.get("scenes").is<picojson::object>()) {
+  if (v.contains("scenes") && v.get("scenes").is<picojson::array>()) {
     // OK
   } else if (check_sections & REQUIRE_SCENES) {
     if (err) {
@@ -2276,7 +2276,7 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
     return false;
   }
 
-  if (v.contains("nodes") && v.get("nodes").is<picojson::object>()) {
+  if (v.contains("nodes") && v.get("nodes").is<picojson::array>()) {
     // OK
   } else if (check_sections & REQUIRE_NODES) {
     if (err) {
@@ -2285,7 +2285,7 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
     return false;
   }
 
-  if (v.contains("accessors") && v.get("accessors").is<picojson::object>()) {
+  if (v.contains("accessors") && v.get("accessors").is<picojson::array>()) {
     // OK
   } else if (check_sections & REQUIRE_ACCESSORS) {
     if (err) {
@@ -2294,7 +2294,7 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
     return false;
   }
 
-  if (v.contains("buffers") && v.get("buffers").is<picojson::object>()) {
+  if (v.contains("buffers") && v.get("buffers").is<picojson::array>()) {
     // OK
   } else if (check_sections & REQUIRE_BUFFERS) {
     if (err) {
@@ -2304,7 +2304,7 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
   }
 
   if (v.contains("bufferViews") &&
-      v.get("bufferViews").is<picojson::object>()) {
+      v.get("bufferViews").is<picojson::array>()) {
     // OK
   } else if (check_sections & REQUIRE_BUFFER_VIEWS) {
     if (err) {
@@ -2328,14 +2328,14 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
   }
 
   // 1. Parse Buffer
-  if (v.contains("buffers") && v.get("buffers").is<picojson::object>()) {
-    const picojson::object &root = v.get("buffers").get<picojson::object>();
+  if (v.contains("buffers") && v.get("buffers").is<picojson::array>()) {
+    const picojson::array &root = v.get("buffers").get<picojson::array>();
 
-    picojson::object::const_iterator it(root.begin());
-    picojson::object::const_iterator itEnd(root.end());
+    picojson::array::const_iterator it(root.begin());
+    picojson::array::const_iterator itEnd(root.end());
     for (; it != itEnd; it++) {
       Buffer buffer;
-      if (!ParseBuffer(&buffer, err, (it->second).get<picojson::object>(),
+      if (!ParseBuffer(&buffer, err, it->get<picojson::object>(),
                        base_dir, is_binary_, bin_data_, bin_size_)) {
         return false;
       }
@@ -2346,15 +2346,15 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
 
   // 2. Parse BufferView
   if (v.contains("bufferViews") &&
-      v.get("bufferViews").is<picojson::object>()) {
-    const picojson::object &root = v.get("bufferViews").get<picojson::object>();
+      v.get("bufferViews").is<picojson::array>()) {
+    const picojson::array &root = v.get("bufferViews").get<picojson::array>();
 
-    picojson::object::const_iterator it(root.begin());
-    picojson::object::const_iterator itEnd(root.end());
+    picojson::array::const_iterator it(root.begin());
+    picojson::array::const_iterator itEnd(root.end());
     for (; it != itEnd; it++) {
       BufferView bufferView;
       if (!ParseBufferView(&bufferView, err,
-                           (it->second).get<picojson::object>())) {
+                           it->get<picojson::object>())) {
         return false;
       }
 
@@ -2363,15 +2363,15 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
   }
 
   // 3. Parse Accessor
-  if (v.contains("accessors") && v.get("accessors").is<picojson::object>()) {
-    const picojson::object &root = v.get("accessors").get<picojson::object>();
+  if (v.contains("accessors") && v.get("accessors").is<picojson::array>()) {
+    const picojson::array &root = v.get("accessors").get<picojson::array>();
 
-    picojson::object::const_iterator it(root.begin());
-    picojson::object::const_iterator itEnd(root.end());
+    picojson::array::const_iterator it(root.begin());
+    picojson::array::const_iterator itEnd(root.end());
     for (; it != itEnd; it++) {
       Accessor accessor;
       if (!ParseAccessor(&accessor, err,
-                         (it->second).get<picojson::object>())) {
+                         it->get<picojson::object>())) {
         return false;
       }
 
@@ -2380,14 +2380,14 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
   }
 
   // 4. Parse Mesh
-  if (v.contains("meshes") && v.get("meshes").is<picojson::object>()) {
-    const picojson::object &root = v.get("meshes").get<picojson::object>();
+  if (v.contains("meshes") && v.get("meshes").is<picojson::array>()) {
+    const picojson::array &root = v.get("meshes").get<picojson::array>();
 
-    picojson::object::const_iterator it(root.begin());
-    picojson::object::const_iterator itEnd(root.end());
+    picojson::array::const_iterator it(root.begin());
+    picojson::array::const_iterator itEnd(root.end());
     for (; it != itEnd; it++) {
       Mesh mesh;
-      if (!ParseMesh(&mesh, err, (it->second).get<picojson::object>())) {
+      if (!ParseMesh(&mesh, err, it->get<picojson::object>())) {
         return false;
       }
 
@@ -2396,14 +2396,14 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
   }
 
   // 5. Parse Node
-  if (v.contains("nodes") && v.get("nodes").is<picojson::object>()) {
-    const picojson::object &root = v.get("nodes").get<picojson::object>();
+  if (v.contains("nodes") && v.get("nodes").is<picojson::array>()) {
+    const picojson::array &root = v.get("nodes").get<picojson::array>();
 
-    picojson::object::const_iterator it(root.begin());
-    picojson::object::const_iterator itEnd(root.end());
+    picojson::array::const_iterator it(root.begin());
+    picojson::array::const_iterator itEnd(root.end());
     for (; it != itEnd; it++) {
       Node node;
-      if (!ParseNode(&node, err, (it->second).get<picojson::object>())) {
+      if (!ParseNode(&node, err, it->get<picojson::object>())) {
         return false;
       }
 
@@ -2412,19 +2412,19 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
   }
 
   // 6. Parse scenes.
-  if (v.contains("scenes") && v.get("scenes").is<picojson::object>()) {
-    const picojson::object &root = v.get("scenes").get<picojson::object>();
+  if (v.contains("scenes") && v.get("scenes").is<picojson::array>()) {
+    const picojson::array &root = v.get("scenes").get<picojson::array>();
 
-    picojson::object::const_iterator it(root.begin());
-    picojson::object::const_iterator itEnd(root.end());
+    picojson::array::const_iterator it(root.begin());
+    picojson::array::const_iterator itEnd(root.end());
     for (; it != itEnd; it++) {
-      if (!((it->second).is<picojson::object>())) {
+      if (!(it->is<picojson::object>())) {
         if (err) {
           (*err) += "`scenes' does not contain an object.";
         }
         return false;
       }
-      const picojson::object &o = (it->second).get<picojson::object>();
+      const picojson::object &o = it->get<picojson::object>();
       std::vector<double> nodes;
       if (!ParseNumberArrayProperty(&nodes, err, o, "nodes", false)) {
         return false;
@@ -2447,12 +2447,12 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
   }
 
   // 8. Parse Material
-  if (v.contains("materials") && v.get("materials").is<picojson::object>()) {
-    const picojson::object &root = v.get("materials").get<picojson::object>();
-    picojson::object::const_iterator it(root.begin());
-    picojson::object::const_iterator itEnd(root.end());
+  if (v.contains("materials") && v.get("materials").is<picojson::array>()) {
+    const picojson::array &root = v.get("materials").get<picojson::array>();
+    picojson::array::const_iterator it(root.begin());
+    picojson::array::const_iterator itEnd(root.end());
     for (; it != itEnd; it++) {
-      picojson::object jsonMaterial = (it->second).get<picojson::object>();
+      picojson::object jsonMaterial = it->get<picojson::object>();
       std::map<std::string, picojson::value>::iterator extIt = jsonMaterial.find("extensions");
       if(extIt != jsonMaterial.end()){
           picojson::object extension = extIt->second.get<picojson::object>();
@@ -2493,19 +2493,19 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
   }
 
   // 9. Parse Image
-  if (v.contains("images") && v.get("images").is<picojson::object>()) {
-    const picojson::object &root = v.get("images").get<picojson::object>();
+  if (v.contains("images") && v.get("images").is<picojson::array>()) {
+    const picojson::array &root = v.get("images").get<picojson::array>();
 
-    picojson::object::const_iterator it(root.begin());
-    picojson::object::const_iterator itEnd(root.end());
+    picojson::array::const_iterator it(root.begin());
+    picojson::array::const_iterator itEnd(root.end());
     for (; it != itEnd; it++) {
       Image image;
-      if (!ParseImage(&image, err, (it->second).get<picojson::object>(),
+      if (!ParseImage(&image, err, it->get<picojson::object>(),
                       base_dir, is_binary_, bin_data_, bin_size_)) {
         return false;
       }
 
-      if (!image.bufferView != -1) {
+      if (image.bufferView != -1) {
         // Load image from the buffer view.
         if (image.bufferView >= scene->bufferViews.size()) {
           if (err) {
@@ -2533,35 +2533,35 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
   }
 
   // 10. Parse Texture
-  if (v.contains("textures") && v.get("textures").is<picojson::object>()) {
-    const picojson::object &root = v.get("textures").get<picojson::object>();
+  if (v.contains("textures") && v.get("textures").is<picojson::array>()) {
+    const picojson::array &root = v.get("textures").get<picojson::array>();
 
-    picojson::object::const_iterator it(root.begin());
-    picojson::object::const_iterator itEnd(root.end());
+    picojson::array::const_iterator it(root.begin());
+    picojson::array::const_iterator itEnd(root.end());
     for (; it != itEnd; it++) {
       Texture texture;
-      if (!ParseTexture(&texture, err, (it->second).get<picojson::object>(),
+      if (!ParseTexture(&texture, err, it->get<picojson::object>(),
                         base_dir)) {
         return false;
       }
 
       // Parse extra metadata
       texture.extras.clear();
-      ParseExtras(texture.extras, err, (it->second).get<picojson::object>());
+      ParseExtras(texture.extras, err, it->get<picojson::object>());
 
       scene->textures.push_back(texture);
     }
   }
 
   // 11. Parse Shader
-  if (v.contains("shaders") && v.get("shaders").is<picojson::object>()) {
-    const picojson::object &root = v.get("shaders").get<picojson::object>();
+  if (v.contains("shaders") && v.get("shaders").is<picojson::array>()) {
+    const picojson::array &root = v.get("shaders").get<picojson::array>();
 
-    picojson::object::const_iterator it(root.begin());
-    picojson::object::const_iterator itEnd(root.end());
+    picojson::array::const_iterator it(root.begin());
+    picojson::array::const_iterator itEnd(root.end());
     for (; it != itEnd; ++it) {
       Shader shader;
-      if (!ParseShader(&shader, err, (it->second).get<picojson::object>(),
+      if (!ParseShader(&shader, err, it->get<picojson::object>(),
                        base_dir, is_binary_, bin_data_, bin_size_)) {
         return false;
       }
@@ -2571,14 +2571,14 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
   }
 
   // 12. Parse Program
-  if (v.contains("programs") && v.get("programs").is<picojson::object>()) {
-    const picojson::object &root = v.get("programs").get<picojson::object>();
+  if (v.contains("programs") && v.get("programs").is<picojson::array>()) {
+    const picojson::array &root = v.get("programs").get<picojson::array>();
 
-    picojson::object::const_iterator it(root.begin());
-    picojson::object::const_iterator itEnd(root.end());
+    picojson::array::const_iterator it(root.begin());
+    picojson::array::const_iterator itEnd(root.end());
     for (; it != itEnd; ++it) {
       Program program;
-      if (!ParseProgram(&program, err, (it->second).get<picojson::object>())) {
+      if (!ParseProgram(&program, err, it->get<picojson::object>())) {
         return false;
       }
 
@@ -2587,15 +2587,15 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
   }
 
   // 13. Parse Technique
-  if (v.contains("techniques") && v.get("techniques").is<picojson::object>()) {
-    const picojson::object &root = v.get("techniques").get<picojson::object>();
+  if (v.contains("techniques") && v.get("techniques").is<picojson::array>()) {
+    const picojson::array &root = v.get("techniques").get<picojson::array>();
 
-    picojson::object::const_iterator it(root.begin());
-    picojson::object::const_iterator itEnd(root.end());
+    picojson::array::const_iterator it(root.begin());
+    picojson::array::const_iterator itEnd(root.end());
     for (; it != itEnd; ++it) {
       Technique technique;
       if (!ParseTechnique(&technique, err,
-                          (it->second).get<picojson::object>())) {
+                          it->get<picojson::object>())) {
         return false;
       }
 
@@ -2604,15 +2604,15 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
   }
 
   // 14. Parse Animation
-  if (v.contains("animations") && v.get("animations").is<picojson::object>()) {
-    const picojson::object &root = v.get("animations").get<picojson::object>();
+  if (v.contains("animations") && v.get("animations").is<picojson::array>()) {
+    const picojson::array &root = v.get("animations").get<picojson::array>();
 
-    picojson::object::const_iterator it(root.begin());
-    picojson::object::const_iterator itEnd(root.end());
+    picojson::array::const_iterator it(root.begin());
+    picojson::array::const_iterator itEnd(root.end());
     for (; it != itEnd; ++it) {
       Animation animation;
       if (!ParseAnimation(&animation, err,
-                          (it->second).get<picojson::object>())) {
+                          it->get<picojson::object>())) {
         return false;
       }
 
@@ -2621,15 +2621,15 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
   }
 
   // 14.5. Parse Skeleton data
-  if (v.contains("skins") && v.get("skins").is<picojson::object>()) {
-    const picojson::object &root = v.get("skins").get<picojson::object>();
+  if (v.contains("skins") && v.get("skins").is<picojson::array>()) {
+    const picojson::array &root = v.get("skins").get<picojson::array>();
 
-    picojson::object::const_iterator it(root.begin());
-    picojson::object::const_iterator itEnd(root.end());
+    picojson::array::const_iterator it(root.begin());
+    picojson::array::const_iterator itEnd(root.end());
     for (; it != itEnd; ++it) {
       Skin skin;
       if (!parseSkin(&skin, err,
-                          (it->second).get<picojson::object>())) {
+                          it->get<picojson::object>())) {
         return false;
       }
 
@@ -2638,14 +2638,14 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
   }
 
   // 15. Parse Sampler
-  if (v.contains("samplers") && v.get("samplers").is<picojson::object>()) {
-    const picojson::object &root = v.get("samplers").get<picojson::object>();
+  if (v.contains("samplers") && v.get("samplers").is<picojson::array>()) {
+    const picojson::array &root = v.get("samplers").get<picojson::array>();
 
-    picojson::object::const_iterator it(root.begin());
-    picojson::object::const_iterator itEnd(root.end());
+    picojson::array::const_iterator it(root.begin());
+    picojson::array::const_iterator itEnd(root.end());
     for (; it != itEnd; ++it) {
       Sampler sampler;
-      if (!ParseSampler(&sampler, err, (it->second).get<picojson::object>())) {
+      if (!ParseSampler(&sampler, err, it->get<picojson::object>())) {
         return false;
       }
 
