@@ -485,8 +485,7 @@ class TinyGLTFLoader {
                             const std::string &base_dir = "",
                             unsigned int check_sections = REQUIRE_ALL);
 
-  bool WriteGltfSceneToFile(Scene *scene, std::string *err,
-                          const std::string &filename);
+  bool WriteGltfSceneToFile(Scene *scene, const std::string &filename);
 
  private:
   /// Loads glTF asset from string(memory).
@@ -2854,11 +2853,11 @@ static bool SerializeStringArrayProperty(const std::string &key, const std::vect
   return true;
 }
 
-static bool SerializeBuffer(Buffer &buffer, const std::string &binFilePath)
+static bool SerializeGltfBufferData(const std::vector<unsigned char> &data, const std::string &binFilePath)
 {
   //Serialize buffer data
   std::ofstream output(binFilePath.c_str(), std::ofstream::binary);
-  output.write((const char*)&buffer.data[0], buffer.data.size());
+  output.write((const char*)&data[0], data.size());
   output.close();
 
   return true;
@@ -2997,10 +2996,11 @@ static bool SerializeGltfAsset(Asset &asset, picojson::object &o)
   return true;
 }
 
-static bool SerializeGltfBuffer(Buffer &buffer, picojson::object &o)
+static bool SerializeGltfBuffer(Buffer &buffer, picojson::object &o, const std::string &binFilePath)
 {
+  SerializeGltfBufferData(buffer.data, binFilePath);
   SerializeNumberProperty("byteLength", buffer.data.size(), o);
-  SerializeStringProperty("uri", buffer.uri, o);
+  SerializeStringProperty("uri", binFilePath, o);
 
   return true;
 }
@@ -3197,12 +3197,23 @@ bool TinyGLTFLoader::WriteGltfSceneToFile(Scene *scene, const std::string &filen
   SerializeGltfAsset(scene->asset, asset);
   output.insert(json_object_pair("asset", picojson::value(asset)));
 
-  //BUFFERS
+  std::string binFilePath = filename;
+  std::string ext = "bin";
+  std::string::size_type i = binFilePath.rfind('.', binFilePath.length());
+  if (i != std::string::npos) {
+      binFilePath.replace(i+1, ext.length(), ext);
+  }
+  else
+  {
+    binFilePath = binFilePath + ".bin";
+  }
+
+  //BUFFERS (We expect only one buffer here)
   picojson::array buffers;
   for(unsigned int i=0; i < scene->buffers.size(); ++i)
   {
     picojson::object buffer;
-    SerializeGltfBuffer(scene->buffers[i], buffer);
+    SerializeGltfBuffer(scene->buffers[i], buffer, binFilePath);
     buffers.push_back(picojson::value(buffer));
   }
   output.insert(json_object_pair("buffers", picojson::value(buffers)));
