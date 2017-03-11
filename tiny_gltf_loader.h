@@ -2251,15 +2251,6 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
     return false;
   }
 
-  if (v.contains("scene") && v.get("scene").is<double>()) {
-    // OK
-  } else if (check_sections & REQUIRE_SCENE) {
-    if (err) {
-      (*err) += "\"scene\" object not found in .gltf\n";
-    }
-    return false;
-  }
-
   if (v.contains("scenes") && v.get("scenes").is<picojson::array>()) {
     // OK
   } else if (check_sections & REQUIRE_SCENES) {
