@@ -328,6 +328,7 @@ class Node {
  public:
   Node()
   {
+    mesh = -1,
     skin = -1;
   }
   ~Node() {}
@@ -337,12 +338,12 @@ class Node {
   std::string name;
   std::string jointName;
   int skin;
+  int mesh;
   std::vector<int> children;
   std::vector<double> rotation;     // length must be 0 or 4
   std::vector<double> scale;        // length must be 0 or 3
   std::vector<double> translation;  // length must be 0 or 3
   std::vector<double> matrix;       // length must be 0 or 16
-  std::vector<int> meshes;
   std::vector<int> skeletons;
 };
 
@@ -1777,10 +1778,9 @@ static bool ParseNode(Node *node, std::string *err, const picojson::object &o) {
   ParseNumberProperty(&camera, err, o, "camera", false);
   node->camera = static_cast<int>(skin);
 
-  std::vector<double> meshes;
-  ParseNumberArrayProperty(&meshes, err, o, "meshes", false);
-  std::vector<int> meshIndices(meshes.begin(), meshes.end());
-  node->meshes = meshIndices;
+  double mesh = -1;
+  ParseNumberProperty(&mesh, err, o, "mesh", false);
+  node->mesh = mesh;
 
   node->children.clear();
   picojson::object::const_iterator childrenObject = o.find("children");
