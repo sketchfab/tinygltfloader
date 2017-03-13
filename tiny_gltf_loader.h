@@ -647,16 +647,22 @@ static std::string FindFile(const std::vector<std::string> &paths,
   return std::string();
 }
 
-// std::string GetFilePathExtension(const std::string& FileName)
-//{
-//    if(FileName.find_last_of(".") != std::string::npos)
-//        return FileName.substr(FileName.find_last_of(".")+1);
-//    return "";
-//}
+std::string GetFilePathExtension(const std::string& FileName)
+{
+   if(FileName.find_last_of(".") != std::string::npos)
+       return FileName.substr(FileName.find_last_of(".")+1);
+   return "";
+}
 
 static std::string GetBaseDir(const std::string &filepath) {
   if (filepath.find_last_of("/\\") != std::string::npos)
     return filepath.substr(0, filepath.find_last_of("/\\"));
+  return "";
+}
+
+static std::string GetBaseName(const std::string &filepath) {
+  if (filepath.find_last_of("/\\") != std::string::npos)
+    return filepath.substr(filepath.find_last_of("/\\") + 1);
   return "";
 }
 
@@ -2961,7 +2967,7 @@ static bool SerializeGltfBuffer(Buffer &buffer, picojson::object &o, const std::
 {
   SerializeGltfBufferData(buffer.data, binFilePath);
   SerializeNumberProperty("byteLength", buffer.data.size(), o);
-  SerializeStringProperty("uri", binFilePath, o);
+  SerializeStringProperty("uri", GetBaseName(binFilePath), o);
 
   return true;
 }
@@ -3150,10 +3156,10 @@ bool TinyGLTFLoader::WriteGltfSceneToFile(Scene *scene, const std::string &filen
   output.insert(json_object_pair("asset", picojson::value(asset)));
 
   std::string binFilePath = filename;
-  std::string ext = "bin";
+  std::string ext = ".bin";
   std::string::size_type i = binFilePath.rfind('.', binFilePath.length());
   if (i != std::string::npos) {
-      binFilePath.replace(i+1, ext.length(), ext);
+      binFilePath = binFilePath.substr(0, i) + ext;
   }
   else
   {
