@@ -158,7 +158,7 @@ struct AnimationChannel {
   AnimationChannel()
   {
     sampler = -1;
-    target_id = -1;
+    target_node = -1;
   }
 };
 
@@ -2901,7 +2901,7 @@ static bool SerializeGltfAnimationChannel(AnimationChannel &channel, picojson::o
 {
   SerializeNumberProperty("sampler", channel.sampler, o);
   picojson::object target;
-  SerializeNumberProperty("id", channel.target_id, target);
+  SerializeNumberProperty("node", channel.target_node, target);
   SerializeStringProperty("path", channel.target_path, target);
 
   o.insert(json_object_pair("target", picojson::value(target)));
