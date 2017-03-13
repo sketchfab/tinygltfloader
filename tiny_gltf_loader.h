@@ -1830,7 +1830,6 @@ static bool ParseMaterial(Material *material, std::string *err,
 
         for (; itVal != itEnd; itVal++) {
           Parameter param;
-          std::cout << "PARSING PARAMETERS for " << itVal->first << std::endl;
           if (ParseParameterProperty(&param, err, values_object, itVal->first,
                                      false)) {
             material->values[itVal->first] = param;
@@ -2246,15 +2245,6 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
     return false;
   }
 
-  if (v.contains("scene") && v.get("scene").is<double>()) {
-    // OK
-  } else if (check_sections & REQUIRE_SCENE) {
-    if (err) {
-      (*err) += "\"scene\" object not found in .gltf\n";
-    }
-    return false;
-  }
-
   if (v.contains("scenes") && v.get("scenes").is<picojson::array>()) {
     // OK
   } else if (check_sections & REQUIRE_SCENES) {
@@ -2454,7 +2444,6 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
       Material material;
       ParseStringProperty(&material.name, err, jsonMaterial, "name", false);
 
-      std::cout << "Found classic material" << std::endl;
       if (!ParseMaterial(&material, err, jsonMaterial)) {
         return false;
       }
