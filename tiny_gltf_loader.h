@@ -140,16 +140,6 @@ namespace tinygltf {
 #define TINYGLTF_SHADER_TYPE_VERTEX_SHADER (35633)
 #define TINYGLTF_SHADER_TYPE_FRAGMENT_SHADER (35632)
 
-// This is an unofficial flag that allows to know if the flag needs to be
-// enabled or not for this texture. glTF spec considers it as false by
-// default but most of the renderers enable it.
-// Unknown will be considered the same as false, and means that the flag is not given
-// in the file
-enum FlipY {
-  FLIPY_UNKNOWN,
-  FLIPY_FALSE,
-  FLIPY_TRUE
-};
 
 struct Parameter {
   bool bool_value;
@@ -232,7 +222,6 @@ struct Image{
 struct Texture {
   int format;
   int internalFormat;
-  FlipY flipY;
   int sampler;  // Required
   int source;   // Required
   int target;
@@ -1496,17 +1485,6 @@ static bool ParseTexture(Texture *texture, std::string *err,
 
   double internalFormat = TINYGLTF_TEXTURE_FORMAT_RGBA;
   ParseNumberProperty(&internalFormat, err, o, "internalFormat", false);
-
-  bool flipY = false;
-  bool propertyFound = ParseBooleanProperty(&flipY, err, o, "flipY", false);
-
-  if(propertyFound)
-  {
-    if(flipY)
-      texture->flipY = FLIPY_TRUE;
-    else
-      texture->flipY = FLIPY_FALSE;
-  }
 
   double target = TINYGLTF_TEXTURE_TARGET_TEXTURE2D;
   ParseNumberProperty(&target, err, o, "target", false);
@@ -3146,7 +3124,6 @@ static bool SerializeGltfTexture(Texture &texture, picojson::object &o)
   SerializeNumberProperty("source", texture.source, o);
   SerializeNumberProperty("target", texture.target, o);
   SerializeNumberProperty("type", texture.type, o);
-  o.insert(json_object_pair("flipY", picojson::value(texture.flipY != FLIPY_FALSE)));
 
   if(texture.extras.size())
   {
