@@ -145,7 +145,7 @@ struct Parameter {
   bool bool_value;
   std::string string_value;
   std::vector<double> number_array;
-  std::map<std::string, int> json_int_value;
+  std::map<std::string, double> json_double_value;
 };
 
 typedef std::map<std::string, Parameter> ParameterMap;
@@ -984,7 +984,7 @@ static bool ParseNumberProperty(double *ret, std::string *err,
   return true;
 }
 
-static bool ParseJSONProperty(std::map<std::string, int> *ret, std::string *err,
+static bool ParseJSONProperty(std::map<std::string, double> *ret, std::string *err,
                               const picojson::object &o,
                               const std::string &property,
                               bool required)
@@ -1015,7 +1015,7 @@ static bool ParseJSONProperty(std::map<std::string, int> *ret, std::string *err,
   picojson::object::const_iterator itEnd(obj.end());
   for (; it2 != itEnd; it2++) {
     if(it2->second.is<double>())
-      ret->insert(std::pair<std::string, int>(it2->first, static_cast<int>(it2->second.get<double>())));
+      ret->insert(std::pair<std::string, double>(it2->first, it2->second.get<double>()));
   }
 
   return true;
@@ -1307,7 +1307,7 @@ static bool ParseParameterProperty(Parameter *param, std::string *err,
   } else if (ParseNumberProperty(&num_val, err, o, prop, false)) {
     param->number_array.push_back(num_val);
     return true;
-  } else if(ParseJSONProperty(&param->json_int_value, err, o, prop, false)) {
+  } else if(ParseJSONProperty(&param->json_double_value, err, o, prop, false)) {
     return true;
   } else if(ParseBooleanProperty(&param->bool_value, err, o, prop, false)) {
     return true;
@@ -2837,10 +2837,14 @@ static bool SerializeParameterMap(ParameterMap &param, picojson::object &o)
   {
     if(paramIt->second.number_array.size())
       SerializeNumberArrayProperty<double>(paramIt->first, paramIt->second.number_array, o);
-    else if(paramIt->second.json_int_value.size()){
-      picojson::object json_int_value;
-      json_int_value.insert(json_object_pair(paramIt->second.json_int_value.begin()->first, picojson::value(static_cast<double>(paramIt->second.json_int_value.begin()->second))));
-      o.insert(json_object_pair(paramIt->first, picojson::value(json_int_value)));
+    else if(paramIt->second.json_double_value.size()){
+      picojson::object json_double_value;
+      for(std::map<std::string, double>::iterator subParamIt = paramIt->second.json_double_value.begin(); subParamIt != paramIt->second.json_double_value.end(); subParamIt++)
+      {
+        json_double_value.insert(json_object_pair(subParamIt->first, picojson::value(subParamIt->second)));
+      }
+
+      o.insert(json_object_pair(paramIt->first, picojson::value(json_double_value)));
     }
     else if(!paramIt->second.string_value.empty())
       SerializeStringProperty(paramIt->first, paramIt->second.string_value, o);
