@@ -162,13 +162,13 @@ typedef std::map<std::string, Parameter> ParameterMap;
 
 struct AnimationChannel {
   int sampler;
-  int target_id;
+  int target_node;
   std::string target_path;
 
   AnimationChannel()
   {
     sampler = -1;
-    target_id = -1;
+    target_node = -1;
   }
 };
 
@@ -2120,7 +2120,7 @@ static bool ParseAnimationChannel(AnimationChannel *channel, std::string *err,
     const picojson::object &target_object =
         (targetIt->second).get<picojson::object>();
 
-    if (!ParseNumberProperty(&targetIndex, err, target_object, "id",
+    if (!ParseNumberProperty(&targetIndex, err, target_object, "node",
                              true)) {
       if (err) {
         (*err) += "`id` field is missing in animation.channels.target\n";
@@ -2138,7 +2138,7 @@ static bool ParseAnimationChannel(AnimationChannel *channel, std::string *err,
   }
 
   channel->sampler = static_cast<int>(samplerIndex);
-  channel->target_id = static_cast<int>(targetIndex);
+  channel->target_node = static_cast<int>(targetIndex);
 
   return true;
 }
