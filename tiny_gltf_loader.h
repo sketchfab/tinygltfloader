@@ -2989,36 +2989,29 @@ static bool SerializeGltfMaterial(Material &material, picojson::object &o)
 
   if(!material.extension.empty())
   {
-    picojson::object mat;
+    if(material.extension != "KHR_materials_pbrSpecularGlossiness")
+    {
+      std::cout << "[tinygltf::SerializeGltfMaterial] Extension '" << material.extension << "' not supported in writer" << std::endl;
+    }
 
-    if(material.extension == "FRAUNHOFER_materials_pbr")
-    {
-      picojson::object values;
-      SerializeParameterMap(material.extPBRValues, values);
-      mat.insert(json_object_pair("values", picojson::value(values)));
-      SerializeStringProperty("materialModel", material.materialModel, mat);
-    }
-    else if(material.extension == "KHR_materials_common")
-    {
-      picojson::object values;
-      SerializeParameterMap(material.extCommonValues, values);
-      mat.insert(json_object_pair("values", picojson::value(values)));
-      mat.insert(json_object_pair("doubleSided", picojson::value(material.doubleSided)));
-      mat.insert(json_object_pair("transparent", picojson::value(material.transparent)));
-    }
+    picojson::object values;
+    SerializeParameterMap(material.extPBRValues, values);
 
     picojson::object extension;
-    extension.insert(json_object_pair(material.extension, picojson::value(mat)));
+    extension.insert(json_object_pair(material.extension, picojson::value(values)));
     o.insert(json_object_pair("extensions", picojson::value(extension)));
+
+    picojson::object additionalValues;
+    SerializeParameterMap(material.additionalValues, o);
   }
   else
   {
-    SerializeStringProperty("materialModel", material.materialModel, o);
-    if(material.extension.empty()){
-      picojson::object values;
-      SerializeParameterMap(material.values, values);
-      o.insert(json_object_pair("values", picojson::value(values)));
-    }
+    picojson::object pbrMetallicRoughness;
+    SerializeParameterMap(material.values, pbrMetallicRoughness);
+    o.insert(json_object_pair("pbrMetallicRoughness", picojson::value(pbrMetallicRoughness)));
+
+    picojson::object additionalValues;
+    SerializeParameterMap(material.additionalValues, o);
   }
 
   SerializeStringProperty("name", material.name, o);
