@@ -145,7 +145,7 @@ struct Parameter {
   bool bool_value;
   std::string string_value;
   std::vector<double> number_array;
-  std::map<std::string, int> json_int_value;
+  std::map<std::string, double> json_double_value;
 };
 
 typedef std::map<std::string, Parameter> ParameterMap;
@@ -980,7 +980,7 @@ static bool ParseNumberProperty(double *ret, std::string *err,
   return true;
 }
 
-static bool ParseJSONProperty(std::map<std::string, int> *ret, std::string *err,
+static bool ParseJSONProperty(std::map<std::string, double> *ret, std::string *err,
                               const picojson::object &o,
                               const std::string &property,
                               bool required)
@@ -1011,7 +1011,7 @@ static bool ParseJSONProperty(std::map<std::string, int> *ret, std::string *err,
   picojson::object::const_iterator itEnd(obj.end());
   for (; it2 != itEnd; it2++) {
     if(it2->second.is<double>())
-      ret->insert(std::pair<std::string, int>(it2->first, static_cast<int>(it2->second.get<double>())));
+      ret->insert(std::pair<std::string, double>(it2->first, it2->second.get<double>()));
   }
 
   return true;
@@ -1303,7 +1303,7 @@ static bool ParseParameterProperty(Parameter *param, std::string *err,
   } else if (ParseNumberProperty(&num_val, err, o, prop, false)) {
     param->number_array.push_back(num_val);
     return true;
-  } else if(ParseJSONProperty(&param->json_int_value, err, o, prop, false)) {
+  } else if(ParseJSONProperty(&param->json_double_value, err, o, prop, false)) {
     return true;
   } else if(ParseBooleanProperty(&param->bool_value, err, o, prop, false)) {
     return true;
