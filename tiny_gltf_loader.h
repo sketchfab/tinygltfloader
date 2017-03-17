@@ -476,6 +476,8 @@ class TinyGLTFLoader {
                             const std::string &base_dir = "",
                             unsigned int check_sections = REQUIRE_ALL);
 
+  bool WriteGltfSceneToFile(Scene *scene, const std::string &filename);
+
  private:
   /// Loads glTF asset from string(memory).
   /// `length` = strlen(str);
@@ -531,6 +533,8 @@ class TinyGLTFLoader {
 #define TINYGLTF_LITTLE_ENDIAN 1
 #endif
 #endif
+
+typedef std::pair<std::string, picojson::value> json_object_pair;
 
 namespace tinygltf {
 
@@ -643,16 +647,22 @@ static std::string FindFile(const std::vector<std::string> &paths,
   return std::string();
 }
 
-// std::string GetFilePathExtension(const std::string& FileName)
-//{
-//    if(FileName.find_last_of(".") != std::string::npos)
-//        return FileName.substr(FileName.find_last_of(".")+1);
-//    return "";
-//}
+std::string GetFilePathExtension(const std::string& FileName)
+{
+   if(FileName.find_last_of(".") != std::string::npos)
+       return FileName.substr(FileName.find_last_of(".")+1);
+   return "";
+}
 
 static std::string GetBaseDir(const std::string &filepath) {
   if (filepath.find_last_of("/\\") != std::string::npos)
     return filepath.substr(0, filepath.find_last_of("/\\"));
+  return "";
+}
+
+static std::string GetBaseName(const std::string &filepath) {
+  if (filepath.find_last_of("/\\") != std::string::npos)
+    return filepath.substr(filepath.find_last_of("/\\") + 1);
   return "";
 }
 
@@ -2221,6 +2231,12 @@ static bool ParseSampler(Sampler *sampler, std::string *err,
   return true;
 }
 
+static void WriteGltfFile(const std::string& output, const std::string& content)
+{
+    std::ofstream metaFile(output.c_str());
+    metaFile << content << std::endl;
+}
+
 bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
                                     const char *str, unsigned int length,
                                     const std::string &base_dir,
@@ -2602,6 +2618,7 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
       scene->samplers.push_back(sampler);
     }
   }
+
   return true;
 }
 
@@ -2747,6 +2764,519 @@ bool TinyGLTFLoader::LoadBinaryFromFile(Scene *scene, std::string *err,
       static_cast<unsigned int>(buf.size()), basedir, check_sections);
 
   return ret;
+}
+
+
+///////////////////////
+// GLTF Serializaztion
+///////////////////////
+
+template<typename T>
+static bool SerializeNumberProperty(const std::string &key, T number, picojson::object &obj)
+{
+  obj.insert(json_object_pair(key, picojson::value(static_cast<double>(number))));
+}
+
+template<typename T>
+static bool SerializeNumberArrayProperty(const std::string &key, const std::vector<T> &value, picojson::object &obj)
+{
+  picojson::object o;
+  picojson::array vals;
+
+  for(unsigned int i = 0; i < value.size() ; ++i)
+    vals.push_back(picojson::value(static_cast<double>(value[i])));
+
+  obj.insert(json_object_pair(key, picojson::value(vals)));
+
+  return true;
+}
+
+static bool SerializeStringProperty(const std::string &key, const std::string &value, picojson::object &obj)
+{
+  if(value.empty())
+    return false;
+
+  picojson::value strVal(value);
+  obj.insert(json_object_pair(key, strVal));
+
+  return true;
+}
+
+static bool SerializeStringArrayProperty(const std::string &key, const std::vector<std::string> &value, picojson::object &obj)
+{
+  picojson::object o;
+  picojson::array vals;
+
+  for(unsigned int i = 0; i < value.size() ; ++i)
+    vals.push_back(picojson::value(value[i]));
+
+  obj.insert(json_object_pair(key, picojson::value(vals)));
+
+  return true;
+}
+
+static bool SerializeGltfBufferData(const std::vector<unsigned char> &data, const std::string &binFilePath)
+{
+  //Serialize buffer data
+  std::ofstream output(binFilePath.c_str(), std::ofstream::binary);
+  output.write((const char*)&data[0], data.size());
+  output.close();
+
+  return true;
+}
+
+static bool SerializeParameterMap(ParameterMap &param, picojson::object &o)
+{
+  for(ParameterMap::iterator paramIt = param.begin(); paramIt != param.end(); ++paramIt)
+  {
+    if(paramIt->second.number_array.size())
+      SerializeNumberArrayProperty<double>(paramIt->first, paramIt->second.number_array, o);
+    else if(paramIt->second.json_double_value.size()){
+      picojson::object json_double_value;
+
+      for(std::map<std::string, double>::iterator it=paramIt->second.json_double_value.begin(); it != paramIt->second.json_double_value.end(); ++it)
+      {
+        json_double_value.insert(json_object_pair(it->first, picojson::value(it->second)));
+      }
+
+      o.insert(json_object_pair(paramIt->first, picojson::value(json_double_value)));
+    }
+    else if(!paramIt->second.string_value.empty())
+      SerializeStringProperty(paramIt->first, paramIt->second.string_value, o);
+    else
+      o.insert(json_object_pair(paramIt->first, picojson::value(paramIt->second.bool_value)));
+  }
+}
+
+static bool SerializeGltfAccessor(Accessor &accessor, picojson::object &o)
+{
+    SerializeNumberProperty<int>("bufferView", accessor.bufferView, o);
+    SerializeNumberProperty<size_t>("byteOffset", accessor.byteOffset, o);
+    SerializeNumberProperty<int>("componentType", accessor.componentType, o);
+    SerializeNumberProperty<int>("count", accessor.count, o);
+    SerializeNumberArrayProperty<double>("min", accessor.minValues, o);
+    SerializeNumberArrayProperty<double>("max", accessor.maxValues, o);
+    std::string type;
+    switch(accessor.type)
+    {
+      case TINYGLTF_TYPE_SCALAR:
+        type = "SCALAR";
+        break;
+      case TINYGLTF_TYPE_VEC2:
+        type = "VEC2";
+        break;
+      case TINYGLTF_TYPE_VEC3:
+        type = "VEC3";
+        break;
+      case TINYGLTF_TYPE_VEC4:
+        type = "VEC4";
+        break;
+      case TINYGLTF_TYPE_MAT2:
+        type = "MAT2";
+        break;
+      case TINYGLTF_TYPE_MAT3:
+        type = "MAT3";
+        break;
+      case TINYGLTF_TYPE_MAT4:
+        type = "MAT4";
+        break;
+    }
+
+    SerializeStringProperty("type", type, o);
+
+  return true;
+}
+
+static bool SerializeGltfAnimationChannel(AnimationChannel &channel, picojson::object &o)
+{
+  SerializeNumberProperty("sampler", channel.sampler, o);
+  picojson::object target;
+  SerializeNumberProperty("node", channel.target_node, target);
+  SerializeStringProperty("path", channel.target_path, target);
+
+  o.insert(json_object_pair("target", picojson::value(target)));
+
+  return true;
+}
+
+static bool SerializeGltfAnimationSampler(AnimationSampler &sampler, picojson::object &o)
+{
+  SerializeNumberProperty("input", sampler.input, o);
+  SerializeNumberProperty("output", sampler.output, o);
+  SerializeStringProperty("interpolation", sampler.interpolation, o);
+
+  return true;
+}
+
+static bool SerializeGltfAnimation(Animation &animation, picojson::object &o)
+{
+
+  SerializeStringProperty("name", animation.name, o);
+  picojson::array channels;
+  for(unsigned int i = 0; i < animation.channels.size(); ++i)
+  {
+    picojson::object channel;
+    AnimationChannel gltfChannel = animation.channels[i];
+    SerializeGltfAnimationChannel(gltfChannel, channel);
+    channels.push_back(picojson::value(channel));
+  }
+  o.insert(json_object_pair("channels", picojson::value(channels)));
+
+  picojson::array samplers;
+  for(unsigned int i = 0; i < animation.samplers.size(); ++i)
+  {
+    picojson::object sampler;
+    AnimationSampler gltfSampler = animation.samplers[i];
+    SerializeGltfAnimationSampler(gltfSampler, sampler);
+    samplers.push_back(picojson::value(sampler));
+  }
+  o.insert(json_object_pair("samplers", picojson::value(samplers)));
+
+  return true;
+}
+
+static bool SerializeGltfAsset(Asset &asset, picojson::object &o)
+{
+  if(!asset.generator.empty())
+    SerializeStringProperty("generator", asset.generator, o);
+  if(!asset.version.empty())
+    SerializeStringProperty("version", asset.version, o);
+  if(!asset.profile_api.empty())
+    SerializeStringProperty("profile_api", asset.profile_api, o);
+  if(!asset.profile_version.empty())
+    SerializeStringProperty("profile_version", asset.profile_version, o);
+  if(!asset.generator.empty())
+    SerializeStringProperty("generator", asset.generator, o);
+
+  if(asset.extras.size())
+  {
+    picojson::object extras;
+    SerializeParameterMap(asset.extras, extras);
+    o.insert(json_object_pair("extras", picojson::value(extras)));
+  }
+
+  return true;
+}
+
+static bool SerializeGltfBuffer(Buffer &buffer, picojson::object &o, const std::string &binFilePath)
+{
+  SerializeGltfBufferData(buffer.data, binFilePath);
+  SerializeNumberProperty("byteLength", buffer.data.size(), o);
+  SerializeStringProperty("uri", GetBaseName(binFilePath), o);
+
+  return true;
+}
+
+static bool SerializeGltfBufferView(BufferView &bufferView, picojson::object &o)
+{
+  SerializeNumberProperty("buffer", bufferView.buffer, o);
+  SerializeNumberProperty<size_t>("byteLength", bufferView.byteLength, o);
+  SerializeNumberProperty<size_t>("byteStride", bufferView.byteStride, o);
+  SerializeNumberProperty<size_t>("byteOffset", bufferView.byteOffset, o);
+  SerializeNumberProperty("target", bufferView.target, o);
+
+  return true;
+}
+
+static bool SerializeGltfImage(Image &image, picojson::object &o)
+{
+  SerializeStringProperty("name", image.name, o);
+  SerializeStringProperty("uri", image.path, o);
+
+  return true;
+}
+
+static bool SerializeGltfMaterial(Material &material, picojson::object &o)
+{
+
+  if(!material.extension.empty())
+  {
+    if(material.extension != "KHR_materials_pbrSpecularGlossiness")
+    {
+      std::cout << "[tinygltf::SerializeGltfMaterial] Extension '" << material.extension << "' not supported in writer" << std::endl;
+    }
+
+    picojson::object values;
+    SerializeParameterMap(material.extPBRValues, values);
+
+    picojson::object extension;
+    extension.insert(json_object_pair(material.extension, picojson::value(values)));
+    o.insert(json_object_pair("extensions", picojson::value(extension)));
+
+    picojson::object additionalValues;
+    SerializeParameterMap(material.additionalValues, o);
+  }
+  else
+  {
+    picojson::object pbrMetallicRoughness;
+    SerializeParameterMap(material.values, pbrMetallicRoughness);
+    o.insert(json_object_pair("pbrMetallicRoughness", picojson::value(pbrMetallicRoughness)));
+
+    picojson::object additionalValues;
+    SerializeParameterMap(material.additionalValues, o);
+  }
+
+  SerializeStringProperty("name", material.name, o);
+
+  return true;
+}
+
+static bool SerializeGltfMesh(Mesh &mesh, picojson::object &o)
+{
+    SerializeStringProperty("name", mesh.name, o);
+
+    picojson::array primitives;
+    for(unsigned int i=0; i < mesh.primitives.size(); ++i)
+    {
+      picojson::object primitive;
+      picojson::object attributes;
+      Primitive gltfPrimitive = mesh.primitives[i];
+      for(std::map<std::string, int>::iterator attrIt = gltfPrimitive.attributes.begin(); attrIt != gltfPrimitive.attributes.end(); ++attrIt)
+      {
+        SerializeNumberProperty<int>(attrIt->first, attrIt->second, attributes);
+      }
+
+      primitive.insert(json_object_pair("attributes", picojson::value(attributes)));
+      SerializeNumberProperty<int>("indices", gltfPrimitive.indices, primitive);
+      SerializeNumberProperty<int>("material", gltfPrimitive.material, primitive);
+      SerializeNumberProperty<int>("mode", gltfPrimitive.mode, primitive);
+      primitives.push_back(picojson::value(primitive));
+    }
+
+    o.insert(json_object_pair("primitives", picojson::value(primitives)));
+
+  return true;
+}
+
+static bool SerializeGltfNode(Node &node, picojson::object &o)
+{
+    if(node.translation.size() > 0)
+      SerializeNumberArrayProperty<double>("translation", node.translation, o);
+    if(node.rotation.size() > 0)
+      SerializeNumberArrayProperty<double>("rotation", node.rotation, o);
+    if(node.scale.size() > 0)
+      SerializeNumberArrayProperty<double>("scale", node.scale, o);
+    if(node.matrix.size() > 0)
+      SerializeNumberArrayProperty<double>("matrix", node.matrix, o);
+    if(node.mesh != -1)
+      SerializeNumberProperty<int>("mesh", node.mesh, o);
+
+    if(node.skin != -1)
+      SerializeNumberProperty<int>("skin", node.skin, o);
+
+  SerializeStringProperty("name", node.name, o);
+  SerializeNumberArrayProperty<int>("children", node.children, o);
+
+  return true;
+}
+
+static bool SerializeGltfSampler(Sampler &sampler, picojson::object &o)
+{
+  SerializeNumberProperty("magFilter", sampler.magFilter, o);
+  SerializeNumberProperty("minFilter", sampler.minFilter, o);
+  SerializeNumberProperty("wrapS", sampler.wrapS, o);
+  SerializeNumberProperty("wrapT", sampler.wrapT, o);
+
+  return true;
+}
+
+static bool SerializeGltfScene(GltfScene &scene, picojson::object &o)
+
+{
+  SerializeStringProperty("name", scene.name, o);
+  SerializeNumberArrayProperty<int>("nodes", scene.nodes, o);
+
+  return true;
+}
+
+static bool SerializeGltfSkin(Skin &skin, picojson::object &o)
+{
+  SerializeNumberProperty("inverseBindMatrices", skin.inverseBindMatrices, o);
+  SerializeNumberArrayProperty<int>("joints", skin.joints, o);
+  SerializeNumberProperty("skeleton", skin.skeleton, o);
+  SerializeStringProperty("name", skin.name, o);
+
+  return true;
+}
+
+static bool SerializeGltfTexture(Texture &texture, picojson::object &o)
+{
+  SerializeNumberProperty("format", texture.format, o);
+  SerializeNumberProperty("internalFormat", texture.internalFormat, o);
+  SerializeNumberProperty("sampler", texture.sampler, o);
+  SerializeNumberProperty("source", texture.source, o);
+  SerializeNumberProperty("target", texture.target, o);
+  SerializeNumberProperty("type", texture.type, o);
+
+  if(texture.extras.size())
+  {
+    picojson::object extras;
+    SerializeParameterMap(texture.extras, extras);
+    o.insert(json_object_pair("extras", picojson::value(extras)));
+  }
+
+  return true;
+}
+
+bool TinyGLTFLoader::WriteGltfSceneToFile(Scene *scene, const std::string &filename)
+{
+  picojson::object output;
+
+  //ACCESSORS
+  picojson::array accessors;
+  for(unsigned int i=0; i < scene->accessors.size(); ++i)
+  {
+    picojson::object accessor;
+    SerializeGltfAccessor(scene->accessors[i], accessor);
+    accessors.push_back(picojson::value(accessor));
+  }
+  output.insert(json_object_pair("accessors", picojson::value(accessors)));
+
+  //ANIMATIONS
+  if(scene->animations.size())
+  {
+      picojson::array animations;
+    for(unsigned int i=0; i < scene->animations.size(); ++i)
+    {
+      if(scene->animations[i].channels.size())
+      {
+        picojson::object animation;
+        SerializeGltfAnimation(scene->animations[i], animation);
+        animations.push_back(picojson::value(animation));
+      }
+    }
+    output.insert(json_object_pair("animations", picojson::value(animations)));
+  }
+
+  //ASSET
+  picojson::object asset;
+  SerializeGltfAsset(scene->asset, asset);
+  output.insert(json_object_pair("asset", picojson::value(asset)));
+
+  std::string binFilePath = filename;
+  std::string ext = ".bin";
+  std::string::size_type i = binFilePath.rfind('.', binFilePath.length());
+  if (i != std::string::npos) {
+      binFilePath = binFilePath.substr(0, i) + ext;
+  }
+  else
+  {
+    binFilePath = binFilePath + ".bin";
+  }
+
+  //BUFFERS (We expect only one buffer here)
+  picojson::array buffers;
+  for(unsigned int i=0; i < scene->buffers.size(); ++i)
+  {
+    picojson::object buffer;
+    SerializeGltfBuffer(scene->buffers[i], buffer, binFilePath);
+    buffers.push_back(picojson::value(buffer));
+  }
+  output.insert(json_object_pair("buffers", picojson::value(buffers)));
+
+  //BUFFERVIEWS
+  picojson::array bufferViews;
+  for(unsigned int i=0; i < scene->bufferViews.size(); ++i)
+  {
+    picojson::object bufferView;
+    SerializeGltfBufferView(scene->bufferViews[i], bufferView);
+    bufferViews.push_back(picojson::value(bufferView));
+  }
+  output.insert(json_object_pair("bufferViews", picojson::value(bufferViews)));
+
+  //Extensions used
+  if(scene->extensionsUsed.size())
+    SerializeStringArrayProperty("extensionsUsed", scene->extensionsUsed, output);
+
+  //IMAGES
+  picojson::array images;
+  for(unsigned int i=0; i < scene->images.size(); ++i)
+  {
+    picojson::object image;
+    SerializeGltfImage(scene->images[i], image);
+    images.push_back(picojson::value(image));
+  }
+  output.insert(json_object_pair("images", picojson::value(images)));
+
+  //MATERIALS
+  picojson::array materials;
+  for(unsigned int i=0; i < scene->materials.size(); ++i)
+  {
+    picojson::object material;
+    SerializeGltfMaterial(scene->materials[i], material);
+    materials.push_back(picojson::value(material));
+  }
+  output.insert(json_object_pair("materials", picojson::value(materials)));
+
+  //MESHES
+  picojson::array meshes;
+  for(unsigned int i=0; i < scene->meshes.size(); ++i)
+  {
+    picojson::object mesh;
+    SerializeGltfMesh(scene->meshes[i], mesh);
+    meshes.push_back(picojson::value(mesh));
+  }
+  output.insert(json_object_pair("meshes", picojson::value(meshes)));
+
+  //NODES
+  picojson::array nodes;
+  for(unsigned int i=0; i < scene->nodes.size(); ++i)
+  {
+    picojson::object node;
+    SerializeGltfNode(scene->nodes[i], node);
+    nodes.push_back(picojson::value(node));
+  }
+  output.insert(json_object_pair("nodes", picojson::value(nodes)));
+
+  //SCENE
+  SerializeNumberProperty<int>("scene", scene->defaultScene, output);
+
+  //SCENES
+  picojson::array scenes;
+  for(unsigned int i=0; i < scene->scenes.size(); ++i)
+  {
+    picojson::object currentScene;
+    SerializeGltfScene(scene->scenes[i], currentScene);
+    scenes.push_back(picojson::value(currentScene));
+  }
+  output.insert(json_object_pair("scenes", picojson::value(scenes)));
+
+  //SKINS
+  if(scene->skins.size())
+  {
+    picojson::array skins;
+    for(unsigned int i=0; i < scene->skins.size(); ++i)
+    {
+      picojson::object skin;
+      SerializeGltfSkin(scene->skins[i], skin);
+      skins.push_back(picojson::value(picojson::value(skin)));
+    }
+    output.insert(json_object_pair("skins", picojson::value(skins)));
+  }
+
+
+  //TEXTURES
+  picojson::array textures;
+  for(unsigned int i=0; i < scene->textures.size(); ++i)
+  {
+    picojson::object texture;
+    SerializeGltfTexture(scene->textures[i], texture);
+    textures.push_back(picojson::value(texture));
+  }
+  output.insert(json_object_pair("textures", picojson::value(textures)));
+
+  //SAMPLERS
+  picojson::array samplers;
+  for(unsigned int i=0; i < scene->samplers.size(); ++i)
+  {
+    picojson::object sampler;
+    SerializeGltfSampler(scene->samplers[i], sampler);
+    samplers.push_back(picojson::value(sampler));
+  }
+  output.insert(json_object_pair("samplers", picojson::value(samplers)));
+
+  WriteGltfFile(filename, picojson::value(output).serialize());
+  return true;
 }
 
 }  // namespace tinygltf
