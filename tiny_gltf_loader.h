@@ -182,13 +182,14 @@ typedef struct {
 
 struct Skin {
   std::string name;
-  std::vector<double> bindShapeMatrix;
   int inverseBindMatrices;
-  std::vector<std::string> jointNames;
+  std::vector<int> joints;
+  int skeleton;
 
   Skin()
   {
     inverseBindMatrices = -1;
+    skeleton = -1;
   }
 };
 
@@ -344,7 +345,6 @@ class Node {
   std::vector<double> scale;        // length must be 0 or 3
   std::vector<double> translation;  // length must be 0 or 3
   std::vector<double> matrix;       // length must be 0 or 16
-  std::vector<int> skeletons;
 };
 
 typedef struct {
@@ -1764,11 +1764,6 @@ static bool ParseNode(Node *node, std::string *err, const picojson::object &o) {
   ParseNumberProperty(&skin, err, o, "skin", false);
   node->skin = static_cast<int>(skin);
 
-  std::vector<double> skeletons;
-  ParseNumberArrayProperty(&skeletons, err, o, "skeletons", false);
-  std::vector<int> skeletonsIndices(skeletons.begin(), skeletons.end());
-  node->skeletons = skeletonsIndices;
-
   ParseNumberArrayProperty(&node->rotation, err, o, "rotation", false);
   ParseNumberArrayProperty(&node->scale, err, o, "scale", false);
   ParseNumberArrayProperty(&node->translation, err, o, "translation", false);
@@ -2188,13 +2183,18 @@ static bool parseSkin(Skin *skin, std::string *err,
                           const picojson::object &o) {
 
   ParseStringProperty(&skin->name, err, o, "name", false);
-  ParseNumberArrayProperty(&skin->bindShapeMatrix, err, o, "bindShapeMatrix", false);
 
   double invBind = -1.0;
-  ParseNumberProperty(&invBind, err, o, "inverseBindMatrices", true);
+  ParseNumberProperty(&invBind, err, o, "inverseBindMatrices", false);
   skin->inverseBindMatrices = static_cast<int>(invBind);
+  std::vector<double> joints;
+  ParseNumberArrayProperty(&joints, err, o, "joints", true);
+  std::vector<int> jointsIds(joints.begin(), joints.end());
+  skin->joints = jointsIds;
 
-  ParseStringArrayProperty(&skin->jointNames, err, o, "jointNames", true);
+  double skeleton = -1;
+  ParseNumberProperty(&skeleton, err, o, "skeleton", false);
+  skin->skeleton = static_cast<int>(skeleton);
 
   return true;
 }
