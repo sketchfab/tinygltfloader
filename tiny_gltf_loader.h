@@ -264,6 +264,7 @@ struct BufferView{
   int buffer;  // Required
   size_t byteOffset;   // Required
   size_t byteLength;   // default: 0
+  size_t byteStride;
   int target;
   int pad0;
 };
@@ -272,7 +273,6 @@ struct Accessor {
   int bufferView;
   std::string name;
   size_t byteOffset;
-  size_t byteStride;
   int componentType;  // One of TINYGLTF_COMPONENT_TYPE_***
   int pad0;
   size_t count;
@@ -1597,6 +1597,9 @@ static bool ParseBufferView(BufferView *bufferView, std::string *err,
   double byteLength = 0.0;
   ParseNumberProperty(&byteLength, err, o, "byteLength", false);
 
+  double byteStride = 0.0;
+  ParseNumberProperty(&byteStride, err, o, "byteStride", false);
+
   double target = 0.0;
   ParseNumberProperty(&target, err, o, "target", false);
   int targetValue = static_cast<int>(target);
@@ -1613,6 +1616,7 @@ static bool ParseBufferView(BufferView *bufferView, std::string *err,
   bufferView->buffer = static_cast<int>(buffer);
   bufferView->byteOffset = static_cast<size_t>(byteOffset);
   bufferView->byteLength = static_cast<size_t>(byteLength);
+  bufferView->byteStride = static_cast<size_t>(byteStride);
 
   return true;
 }
@@ -1667,9 +1671,6 @@ static bool ParseAccessor(Accessor *accessor, std::string *err,
     return false;
   }
 
-  double byteStride = 0.0;
-  ParseNumberProperty(&byteStride, err, o, "byteStride", false);
-
   ParseStringProperty(&accessor->name, err, o, "name", false);
 
   accessor->minValues.clear();
@@ -1680,7 +1681,6 @@ static bool ParseAccessor(Accessor *accessor, std::string *err,
   accessor->count = static_cast<size_t>(count);
   accessor->bufferView = static_cast<int>(bufferView);
   accessor->byteOffset = static_cast<size_t>(byteOffset);
-  accessor->byteStride = static_cast<size_t>(byteStride);
 
   {
     int comp = static_cast<int>(componentType);
