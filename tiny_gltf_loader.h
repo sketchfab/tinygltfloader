@@ -197,7 +197,7 @@ class Value {
 
   // Lookup value from an array
   const Value &Get(int idx) const {
-    static Value &null_value = *(new Value());
+    Value &null_value = *(new Value());
     assert(IsArray());
     assert(idx >= 0);
     return (static_cast<size_t>(idx) < array_value_.size())
@@ -207,7 +207,7 @@ class Value {
 
   // Lookup value from a key-value pair
   const Value &Get(const std::string &key) const {
-    static Value &null_value = *(new Value());
+    Value &null_value = *(new Value());
     assert(IsObject());
     Object::const_iterator it = object_value_.find(key);
     return (it != object_value_.end()) ? it->second : null_value;
